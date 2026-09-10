@@ -1,0 +1,9 @@
+models:
+  - tag: "llama3.2:3b"
+    task_types:
+      - "GENERAL_REASONING"
+    description: "General reasoning, conversation, creative writing, and general knowledge."
+  - tag: "qwen2.5-coder:7b"
+    task_types:
+      - "CODING"
+    description: "Software engineering, code generation, debugging, refactoring, and technical code analysis."

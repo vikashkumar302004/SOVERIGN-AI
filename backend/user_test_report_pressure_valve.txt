@@ -1,0 +1,10 @@
+SAFETY INSPECTION REPORT - PRESSURE REGULATOR VALVE V-402
+Date: 2026-09-05
+Inspector: Pipeline Specialist
+
+Readings & Findings:
+- Pressure valve reading: 5.1 Bar
+- Physical condition: Fluid leak detected near joint B
+- Valve seal status: Worn seal gasket
+
+Notes: Pressure reading is elevated at 5.1 Bar. Immediate maintenance required due to active fluid leak detected near joint B.

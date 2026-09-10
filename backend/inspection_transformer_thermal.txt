@@ -1,0 +1,15 @@
+METRO SUBSTATION B - TRANSFORMER #2 ROUTINE MAINTENANCE LOG
+Date: 2026-09-05
+Inspector: Technician Sarah Connor
+
+Equipment: 110kV Oil-Immersed Step-Down Transformer #2
+Location: Outdoor Switchyard Bay 4
+
+Measurements & Findings:
+- Top Oil Temperature: 42.3°C (Max Permissible Limit: 65.0°C).
+- Winding Temperature: 51.0°C (Max Permissible Limit: 75.0°C).
+- Nitrogen Cushion Pressure: 1.25 bar (Normal Range: 1.0 - 1.5 bar).
+- Dissolved Gas Analysis (DGA): Hydrogen 12 ppm, Methane 8 ppm, Acetylene 0 ppm (Well within IEEE limits).
+
+Anomalies Summary:
+All thermal and pressure metrics are stable and well within standard operational envelopes. Cooling fan bank #1 and #2 functioning normally. No insulation degradation or gas accumulation detected.

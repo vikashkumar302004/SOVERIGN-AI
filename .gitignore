@@ -1,0 +1,73 @@
+# ==========================================
+# Sovereign AI Root GitIgnore
+# ==========================================
+
+# Python & Environment
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Next.js & Node.js
+node_modules/
+.next/
+out/
+.nuxt/
+dist/
+.cache/
+tsconfig.tsbuildinfo
+next-env.d.ts.bak
+
+# Database & Runtime Logs
+*.db
+*.sqlite
+*.sqlite3
+app.db
+
+# Dynamic Uploads, Generated Reports & Temp Files
+backend/uploaded_documents/*
+!backend/uploaded_documents/.gitkeep
+backend/deliverables/*
+!backend/deliverables/.gitkeep
+backend/sandbox_temp/
+backend/temp_audio/
+backend/scratch/
+*.docx
+!backend/test_report.docx
+backend/phase6_results.json
+backend/user_verification_results.json
+
+# IDE & OS Artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

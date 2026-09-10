@@ -1,0 +1,15 @@
+SOVEREIGN POWER PLANT - TURBINE #4 INSPECTION REPORT
+Date: 2026-09-05
+Inspector: Chief Engineer Mark Vance
+
+Equipment: High-Pressure Steam Turbine #4
+Component: Main Bearing #2 Assembly
+
+Measurements & Findings:
+- Vibration Amplitude: 7.8 mm/s RMS (Standard Operating Threshold Limit: 4.5 mm/s RMS).
+- Bearing Temperature: 88.5°C (Maximum Safe Thermal Threshold: 80.0°C).
+- Oil Pressure: 2.1 bar (Nominal Range: 2.0 - 2.5 bar).
+- Acoustic Noise Level: High-frequency metallic rattling detected at 3600 RPM.
+
+Anomalies Summary:
+Bearing #2 vibration exceeds critical threshold by 73%. Thermal reading shows significant overheating. Immediate shutdown and shaft realignment required to avoid catastrophic failure.
