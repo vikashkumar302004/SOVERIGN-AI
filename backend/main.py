@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import os
 import shutil
@@ -8,7 +9,7 @@ from typing import BinaryIO, List, Optional
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 import httpx
 
 import config
@@ -26,6 +27,7 @@ from models import (
     ApprovalStatus,
     InspectionWorkflow,
     GeneratedDeliverable,
+    LoginAttempt,
 )
 from schemas import (
     UserRegisterRequest,
@@ -80,17 +82,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 Base.metadata.create_all(bind=engine)
 
-# Ensure username and role columns exist in audit_logs table
+# Transitional compatibility for existing installations. Alembic migrations replace
+# this compatibility block in the next database milestone.
 try:
-    with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(audit_logs)"))
-        existing_cols = [row[1] for row in result.fetchall()]
-        if "username" not in existing_cols:
-            conn.execute(text("ALTER TABLE audit_logs ADD COLUMN username VARCHAR DEFAULT 'anonymous'"))
-            conn.commit()
-        if "role" not in existing_cols:
-            conn.execute(text("ALTER TABLE audit_logs ADD COLUMN role VARCHAR DEFAULT 'ANONYMOUS'"))
-            conn.commit()
+    existing_cols = {column["name"] for column in inspect(engine).get_columns("audit_logs")}
+    compatibility_columns = {
+        "username": "VARCHAR DEFAULT 'anonymous'",
+        "role": "VARCHAR DEFAULT 'ANONYMOUS'",
+        "request_id": "VARCHAR DEFAULT ''",
+        "ip_address": "VARCHAR DEFAULT 'unknown'",
+    }
+    with engine.begin() as conn:
+        for column_name, column_type in compatibility_columns.items():
+            if column_name not in existing_cols:
+                conn.execute(
+                    text(f"ALTER TABLE audit_logs ADD COLUMN {column_name} {column_type}")
+                )
 except Exception as _mig_err:
     print(f"Audit log column migration check: {_mig_err}")
 
@@ -149,65 +156,67 @@ def _backfill_inspection_deliverables() -> None:
 @app.middleware("http")
 async def audit_logger_middleware(request: Request, call_next):
     start_time = time.time()
-    response = await call_next(request)
-    duration_ms = round((time.time() - start_time) * 1000, 2)
+    incoming_request_id = request.headers.get("X-Request-ID", "")
+    request_id = (
+        incoming_request_id
+        if 0 < len(incoming_request_id) <= 128
+        and all(ch.isalnum() or ch in "-_." for ch in incoming_request_id)
+        else uuid.uuid4().hex
+    )
+    request.state.request_id = request_id
+    response = None
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    finally:
+        duration_ms = round((time.time() - start_time) * 1000, 2)
 
-    endpoint = request.url.path
-    method = request.method
-    status_code = response.status_code
+        endpoint = request.url.path
+        method = request.method
 
-    username = "anonymous"
-    role = "ANONYMOUS"
+        username = "anonymous"
+        role = "ANONYMOUS"
 
-    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
-    token = request.cookies.get(config.AUTH_COOKIE_NAME)
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-    if token:
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
-            token_sub = payload.get("sub") or payload.get("username")
-            token_role = payload.get("role")
-            if token_sub:
-                username = token_sub
-            if token_role:
-                role = str(token_role)
-        except Exception:
-            username = "anonymous"
-            role = "ANONYMOUS"
+        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+        token = request.cookies.get(config.AUTH_COOKIE_NAME)
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+        if token:
+            try:
+                from jose import jwt
+                payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+                username = payload.get("sub") or payload.get("username") or username
+                role = str(payload.get("role") or role)
+            except Exception:
+                pass
 
-    summary = getattr(request.state, "audit_summary", None)
-    if not summary:
-        if endpoint == "/health":
-            summary = f"System health check (HTTP {status_code})"
-        elif endpoint == "/api/v1/system/network-log":
-            summary = "Queried background network monitor status"
-        elif endpoint == "/api/v1/audit/logs":
-            summary = "Queried system audit logs"
-        elif endpoint == "/api/v1/documents/list":
-            summary = "Fetched registered documents list"
-        else:
+        summary = getattr(request.state, "audit_summary", None)
+        if not summary:
             summary = f"API Request: {method} {endpoint}"
 
-    try:
-        db = SessionLocal()
-        log_entry = AuditLog(
-            timestamp=datetime.now(),
-            endpoint=endpoint,
-            method=method,
-            status_code=status_code,
-            duration_ms=duration_ms,
-            summary=summary,
-            username=username,
-            role=role,
-        )
-        db.add(log_entry)
-        db.commit()
-        db.close()
-    except Exception as e:
-        print(f"Failed to save audit log: {e}")
+        try:
+            db = SessionLocal()
+            db.add(
+                AuditLog(
+                    timestamp=datetime.now(),
+                    endpoint=endpoint,
+                    method=method,
+                    status_code=status_code,
+                    duration_ms=duration_ms,
+                    summary=summary,
+                    username=username,
+                    role=role,
+                    request_id=request_id,
+                    ip_address=request.client.host if request.client else "unknown",
+                )
+            )
+            db.commit()
+            db.close()
+        except Exception as exc:
+            print(f"Failed to save audit log: {exc}")
 
+    response.headers["X-Request-ID"] = request_id
     return response
 
 
@@ -342,6 +351,30 @@ def _set_auth_cookie(response: Response, token: str) -> None:
         path="/",
     )
 
+
+def _login_rate_key(login_id: str, ip_address: str) -> str:
+    value = f"{login_id.strip().lower()}|{ip_address}".encode("utf-8")
+    return hashlib.sha256(value).hexdigest()
+
+
+def _enforce_login_rate_limit(db: Session, rate_key: str) -> None:
+    cutoff = datetime.now() - timedelta(minutes=config.LOGIN_WINDOW_MINUTES)
+    recent_failures = (
+        db.query(LoginAttempt)
+        .filter(
+            LoginAttempt.rate_key == rate_key,
+            LoginAttempt.succeeded.is_(False),
+            LoginAttempt.attempted_at >= cutoff,
+        )
+        .count()
+    )
+    if recent_failures >= config.LOGIN_MAX_FAILURES:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed login attempts. Try again later.",
+            headers={"Retry-After": str(config.LOGIN_WINDOW_MINUTES * 60)},
+        )
+
 @app.post("/api/v1/auth/register", response_model=TokenResponse)
 async def register_user(
     request: UserRegisterRequest,
@@ -406,6 +439,7 @@ async def register_user(
 async def login_user(
     request: UserLoginRequest,
     response: Response,
+    http_req: Request,
     db: Session = Depends(get_db),
 ):
     if not request.username or not request.password:
@@ -414,6 +448,9 @@ async def login_user(
         )
 
     login_id = request.username.strip()
+    ip_address = http_req.client.host if http_req.client else "unknown"
+    rate_key = _login_rate_key(login_id, ip_address)
+    _enforce_login_rate_limit(db, rate_key)
     user = (
         db.query(User)
         .filter((User.username == login_id) | (User.email == login_id.lower()))
@@ -421,9 +458,16 @@ async def login_user(
     )
 
     if not user or not verify_password(request.password, user.hashed_password):
+        db.add(LoginAttempt(rate_key=rate_key, succeeded=False))
+        db.commit()
         raise HTTPException(
             status_code=401, detail="Invalid username or password"
         )
+
+    db.query(LoginAttempt).filter(LoginAttempt.rate_key == rate_key).delete(
+        synchronize_session=False
+    )
+    db.commit()
 
     role_str = (
         user.role.value if hasattr(user.role, "value") else str(user.role)
@@ -1732,6 +1776,8 @@ async def get_audit_logs(
             summary=l.summary,
             username=getattr(l, "username", "anonymous") or "anonymous",
             role=getattr(l, "role", "ANONYMOUS") or "ANONYMOUS",
+            request_id=getattr(l, "request_id", "") or "",
+            ip_address=getattr(l, "ip_address", "unknown") or "unknown",
         )
         for l in logs
     ]

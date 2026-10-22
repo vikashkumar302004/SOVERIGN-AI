@@ -3,7 +3,7 @@ import sys
 import unittest
 import uuid
 
-from fastapi import Response
+from fastapi import HTTPException, Response
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
@@ -16,7 +16,7 @@ import config  # noqa: E402
 import main  # noqa: E402
 from auth import create_access_token, get_current_user  # noqa: E402
 from database import Base  # noqa: E402
-from models import ChatSession, GeneratedDeliverable, User, UserRole  # noqa: E402
+from models import ChatSession, GeneratedDeliverable, LoginAttempt, User, UserRole  # noqa: E402
 
 
 class AuthAndIsolationTests(unittest.TestCase):
@@ -112,6 +112,17 @@ class AuthAndIsolationTests(unittest.TestCase):
         self.assertIsNotNone(
             main._accessible_deliverable_query(self.db, deliverable.filename, manager).first()
         )
+
+    def test_login_rate_limit_blocks_repeated_failures(self):
+        rate_key = main._login_rate_key("rate-user", "127.0.0.1")
+        for _ in range(config.LOGIN_MAX_FAILURES):
+            self.db.add(LoginAttempt(rate_key=rate_key, succeeded=False))
+        self.db.commit()
+
+        with self.assertRaises(HTTPException) as raised:
+            main._enforce_login_rate_limit(self.db, rate_key)
+        self.assertEqual(raised.exception.status_code, 429)
+        self.assertIn("Retry-After", raised.exception.headers)
 
 
 if __name__ == "__main__":

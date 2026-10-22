@@ -33,6 +33,8 @@ if ENVIRONMENT == "production" and SECRET_KEY == "dev-only-change-me":
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 8
+LOGIN_MAX_FAILURES = int(os.getenv("LOGIN_MAX_FAILURES", "5"))
+LOGIN_WINDOW_MINUTES = int(os.getenv("LOGIN_WINDOW_MINUTES", "15"))
 AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "sovereign_session")
 AUTH_COOKIE_SECURE = os.getenv(
     "AUTH_COOKIE_SECURE",

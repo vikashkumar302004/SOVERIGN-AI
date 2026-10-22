@@ -106,6 +106,17 @@ class AuditLog(Base):
     summary = Column(Text, nullable=False)
     username = Column(String, nullable=False, default="anonymous")
     role = Column(String, nullable=False, default="ANONYMOUS")
+    request_id = Column(String, nullable=False, default="")
+    ip_address = Column(String, nullable=False, default="unknown")
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    rate_key = Column(String, index=True, nullable=False)
+    succeeded = Column(Boolean, nullable=False, default=False)
+    attempted_at = Column(DateTime, default=datetime.now, index=True)
 
 
 class ChatSession(Base):

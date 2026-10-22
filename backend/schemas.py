@@ -207,6 +207,8 @@ class AuditLogItem(BaseModel):
     summary: str
     username: str = "anonymous"
     role: str = "ANONYMOUS"
+    request_id: str = ""
+    ip_address: str = "unknown"
 
 
 class AuditLogResponse(BaseModel):
