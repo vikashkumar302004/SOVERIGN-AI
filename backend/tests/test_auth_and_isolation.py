@@ -1,7 +1,9 @@
 import os
+import json
 import sys
 import unittest
 import uuid
+from unittest.mock import patch
 
 from fastapi import HTTPException, Response
 from sqlalchemy import create_engine
@@ -16,7 +18,15 @@ import config  # noqa: E402
 import main  # noqa: E402
 from auth import create_access_token, get_current_user  # noqa: E402
 from database import Base  # noqa: E402
-from models import ChatSession, GeneratedDeliverable, LoginAttempt, User, UserRole  # noqa: E402
+from models import (  # noqa: E402
+    ChatSession,
+    Document,
+    DocumentChunk,
+    GeneratedDeliverable,
+    LoginAttempt,
+    User,
+    UserRole,
+)
 
 
 class AuthAndIsolationTests(unittest.TestCase):
@@ -123,6 +133,38 @@ class AuthAndIsolationTests(unittest.TestCase):
             main._enforce_login_rate_limit(self.db, rate_key)
         self.assertEqual(raised.exception.status_code, 429)
         self.assertIn("Retry-After", raised.exception.headers)
+
+    def test_chat_retrieval_respects_document_ownership(self):
+        owner = self.create_user("rag_owner")
+        intruder = self.create_user("rag_intruder")
+        document = Document(
+            filename="private-sop.txt",
+            file_path="private-sop.txt",
+            file_size=42,
+            extracted_text="Private turbine shutdown threshold.",
+            used_ocr=False,
+            owner_id=owner.id,
+        )
+        self.db.add(document)
+        self.db.commit()
+        self.db.refresh(document)
+        self.db.add(
+            DocumentChunk(
+                document_id=document.id,
+                chunk_index=0,
+                chunk_text="Shutdown when vibration exceeds 4.5 mm/s.",
+                embedding=json.dumps([1.0, 0.0]),
+            )
+        )
+        self.db.commit()
+
+        with patch.object(main, "get_embedding", return_value=[1.0, 0.0]):
+            owner_sources = main._retrieve_chat_sources(self.db, "shutdown", owner)
+            intruder_sources = main._retrieve_chat_sources(self.db, "shutdown", intruder)
+
+        self.assertEqual(len(owner_sources), 1)
+        self.assertEqual(owner_sources[0]["filename"], "private-sop.txt")
+        self.assertEqual(intruder_sources, [])
 
 
 if __name__ == "__main__":

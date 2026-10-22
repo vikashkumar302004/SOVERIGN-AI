@@ -45,6 +45,16 @@ interface Message {
   attachedFileName?: string | null;
   timestamp: string;
   isStreaming?: boolean;
+  sources?: CitationSource[];
+}
+
+interface CitationSource {
+  label: string;
+  document_id: number;
+  filename: string;
+  chunk_index: number;
+  score: number;
+  excerpt: string;
 }
 
 interface RegistryDocument {
@@ -488,6 +498,7 @@ export default function ChatPage() {
                             ...m,
                             modelUsed: data.model_used,
                             attachedFileName: data.attached_filename || m.attachedFileName,
+                            sources: Array.isArray(data.sources) ? data.sources : [],
                           }
                         : m
                     )
@@ -769,6 +780,28 @@ export default function ChatPage() {
                           content={msg.content}
                           isStreaming={msg.isStreaming}
                         />
+
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-4 rounded-xl border border-white/[0.08] bg-[#111722] p-3">
+                            <div className="mb-2 flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-[#22D3EE]">
+                              <Database className="h-3.5 w-3.5" />
+                              Evidence used
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {msg.sources.map((source) => (
+                                <span
+                                  key={`${source.document_id}-${source.chunk_index}`}
+                                  title={`${source.excerpt}\nSimilarity: ${source.score.toFixed(3)}`}
+                                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#161B26] px-2.5 py-1 text-[11px] text-[#9CA3AF]"
+                                >
+                                  <span className="font-mono text-[#22D3EE]">[{source.label}]</span>
+                                  <span className="max-w-48 truncate">{source.filename}</span>
+                                  <span className="font-mono text-[#4B5563]">#{source.chunk_index + 1}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Model Badge with Colored Dot & Monospace Timestamp Footer */}
                         {(msg.modelUsed || msg.timestamp) && (

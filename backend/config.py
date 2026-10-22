@@ -46,6 +46,12 @@ CORS_ORIGINS = _csv_env(
     "http://localhost:3000,http://127.0.0.1:3000",
 )
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
+RAG_MAX_CANDIDATE_CHUNKS = int(os.getenv("RAG_MAX_CANDIDATE_CHUNKS", "2000"))
+CHAT_CONTEXT_CHARS = int(os.getenv("CHAT_CONTEXT_CHARS", "12000"))
+CHAT_HISTORY_MESSAGE_CHARS = int(os.getenv("CHAT_HISTORY_MESSAGE_CHARS", "4000"))
+CHAT_TEMPERATURE = float(os.getenv("CHAT_TEMPERATURE", "0.2"))
+CHAT_NUM_CTX = int(os.getenv("CHAT_NUM_CTX", "8192"))
 ENABLE_CODE_SANDBOX = os.getenv(
     "ENABLE_CODE_SANDBOX",
     "true" if ENVIRONMENT == "development" else "false",
