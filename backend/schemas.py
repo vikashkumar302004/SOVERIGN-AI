@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Any
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class UserRoleEnum(str, Enum):
@@ -61,6 +61,8 @@ class HealthResponse(BaseModel):
     status: str
     ollama_reachable: bool
     database_connected: bool
+    available_models: List[str] = Field(default_factory=list)
+    missing_models: List[str] = Field(default_factory=list)
     details: Optional[str] = None
 
 

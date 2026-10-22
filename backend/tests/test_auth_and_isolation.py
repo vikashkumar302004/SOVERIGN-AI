@@ -166,6 +166,20 @@ class AuthAndIsolationTests(unittest.TestCase):
         self.assertEqual(owner_sources[0]["filename"], "private-sop.txt")
         self.assertEqual(intruder_sources, [])
 
+    def test_ollama_model_registry_parser_is_stable(self):
+        payload = {
+            "models": [
+                {"name": "qwen2.5-coder:7b"},
+                {"model": "llama3.2:3b"},
+                {"name": "llama3.2:3b"},
+                {},
+            ]
+        }
+        self.assertEqual(
+            main._parse_ollama_model_names(payload),
+            ["llama3.2:3b", "qwen2.5-coder:7b"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

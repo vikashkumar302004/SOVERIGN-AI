@@ -10,6 +10,8 @@ interface HealthData {
   status: string;
   ollama_reachable: boolean;
   database_connected: boolean;
+  available_models: string[];
+  missing_models: string[];
   details?: string | null;
 }
 
@@ -49,6 +51,8 @@ export default function TopBar() {
           status: "offline",
           ollama_reachable: false,
           database_connected: false,
+          available_models: [],
+          missing_models: [],
           details: "Connection refused",
         });
       }
@@ -79,7 +83,7 @@ export default function TopBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isFullyOnline = health?.ollama_reachable && health?.database_connected;
+  const isFullyOnline = health?.ollama_reachable && health?.database_connected && !health?.missing_models?.length;
   const isNetworkClean = network ? network.total_outbound_attempts === 0 : true;
 
   const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : "U";
@@ -113,7 +117,13 @@ export default function TopBar() {
           <span className="text-[#374151]">|</span>
           <div className="flex items-center space-x-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${isFullyOnline ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
-            <span>{isFullyOnline ? "SECURE" : "DEGRADED"}</span>
+            <span title={health?.details || undefined}>
+              {isFullyOnline
+                ? "SECURE"
+                : health?.missing_models?.length
+                  ? `${health.missing_models.length} MODEL MISSING`
+                  : "DEGRADED"}
+            </span>
           </div>
         </Link>
 

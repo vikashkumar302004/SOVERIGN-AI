@@ -70,7 +70,7 @@ from auth import (
     get_current_user,
     require_roles,
 )
-from classifier import classify_task
+from classifier import classify_task, load_models_registry
 from extractor import extract_text_from_file
 from embeddings import get_embedding, cosine_similarity
 from sandbox import execute_code
@@ -357,7 +357,32 @@ def _retrieve_chat_sources(
     return sources
 
 
-_health_cache = {"timestamp": 0, "ollama_reachable": False, "details": None}
+_health_cache = {
+    "timestamp": 0,
+    "ollama_reachable": False,
+    "available_models": [],
+    "details": None,
+}
+
+
+def _parse_ollama_model_names(payload: dict) -> list[str]:
+    names = []
+    for item in payload.get("models", []):
+        name = item.get("name") or item.get("model")
+        if name:
+            names.append(str(name))
+    return sorted(set(names))
+
+
+def _required_model_names() -> list[str]:
+    return sorted(set(load_models_registry().values()))
+
+
+async def _fetch_ollama_model_names(timeout_seconds: float = 1.5) -> list[str]:
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        response = await client.get(f"{OLLAMA_URL}/api/tags")
+        response.raise_for_status()
+        return _parse_ollama_model_names(response.json())
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -374,17 +399,15 @@ async def health_check(db: Session = Depends(get_db)):
 
     if now - _health_cache["timestamp"] < 5.0:
         ollama_reachable = _health_cache["ollama_reachable"]
+        available_models = _health_cache["available_models"]
         details = _health_cache["details"]
     else:
         ollama_reachable = False
+        available_models = []
         details = None
         try:
-            async with httpx.AsyncClient(timeout=0.5) as client:
-                resp = await client.get(f"{OLLAMA_URL}/api/tags")
-                if resp.status_code == 200:
-                    ollama_reachable = True
-                else:
-                    details = f"Ollama returned HTTP status {resp.status_code}"
+            available_models = await _fetch_ollama_model_names(0.75)
+            ollama_reachable = True
         except Exception as e:
             ollama_reachable = False
             details = f"Ollama connection error: {str(e)}"
@@ -392,14 +415,20 @@ async def health_check(db: Session = Depends(get_db)):
         _health_cache = {
             "timestamp": now,
             "ollama_reachable": ollama_reachable,
+            "available_models": available_models,
             "details": details,
         }
 
-    status = "ok" if (ollama_reachable and db_connected) else "degraded"
+    missing_models = sorted(set(_required_model_names()) - set(available_models))
+    if ollama_reachable and missing_models:
+        details = f"Missing required models: {', '.join(missing_models)}"
+    status = "ok" if (ollama_reachable and db_connected and not missing_models) else "degraded"
     return HealthResponse(
         status=status,
         ollama_reachable=ollama_reachable,
         database_connected=db_connected,
+        available_models=available_models,
+        missing_models=missing_models,
         details=details,
     )
 
@@ -890,6 +919,21 @@ async def chat(
         extracted_file_text = attached_doc_record.extracted_text
 
     model_used, routed_to_reason = classify_task(prompt_text)
+    try:
+        available_models = await _fetch_ollama_model_names(2.0)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Local model runtime is unavailable: {exc}",
+        )
+    if model_used not in available_models:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Required local model '{model_used}' is not installed. "
+                f"Run: ollama pull {model_used}"
+            ),
+        )
 
     # Auto-generate title for first user message in session
     if session.title in ("New Chat", ""):
