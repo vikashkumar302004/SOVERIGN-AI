@@ -31,7 +31,7 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     setLoadingDocs(true);
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/documents/list");
+      const res = await authFetch("/api/v1/documents/list");
       if (res.ok) {
         const data = await res.json();
         setDocuments(data.documents || []);
@@ -59,7 +59,7 @@ export default function DocumentsPage() {
     formData.append("file", file);
 
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/documents/upload", {
+      const res = await authFetch("/api/v1/documents/upload", {
         method: "POST",
         body: formData,
       });

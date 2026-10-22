@@ -51,8 +51,8 @@ export default function ManagerReviewsPage() {
     setError(null);
     try {
       const [pendingRes, historyRes] = await Promise.all([
-        authFetch("http://localhost:8000/api/v1/inspections/pending-review"),
-        authFetch("http://localhost:8000/api/v1/inspections/reviewed-history"),
+        authFetch("/api/v1/inspections/pending-review"),
+        authFetch("/api/v1/inspections/reviewed-history"),
       ]);
 
       if (pendingRes.status === 403 || historyRes.status === 403) {
@@ -96,7 +96,7 @@ export default function ManagerReviewsPage() {
 
     try {
       const res = await authFetch(
-        `http://localhost:8000/api/v1/inspections/${activeItem.workflow_id}/review`,
+        `/api/v1/inspections/${activeItem.workflow_id}/review`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -312,7 +312,7 @@ export default function ManagerReviewsPage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <a
-                            href={`http://localhost:8000${item.download_url}`}
+                            href={item.download_url}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center space-x-1 text-accent hover:underline font-bold"

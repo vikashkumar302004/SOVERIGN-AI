@@ -31,7 +31,7 @@ export default function AuditPage() {
 
   const fetchAuditLogs = async () => {
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/audit/logs");
+      const res = await authFetch("/api/v1/audit/logs");
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }

@@ -48,7 +48,7 @@ export default function DeliverableGeneratorPage() {
 
   const fetchDocuments = async () => {
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/documents/list");
+      const res = await authFetch("/api/v1/documents/list");
       if (res.ok) {
         const data = await res.json();
         setDocuments(data.documents || []);
@@ -76,7 +76,7 @@ export default function DeliverableGeneratorPage() {
         payload.document_id = parseInt(selectedDocId, 10);
       }
 
-      const res = await authFetch("http://localhost:8000/api/v1/deliverables/generate", {
+      const res = await authFetch("/api/v1/deliverables/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -261,7 +261,7 @@ export default function DeliverableGeneratorPage() {
             </div>
 
             <a
-              href={`http://localhost:8000${result.download_url}`}
+              href={result.download_url}
               download
               target="_blank"
               rel="noreferrer"

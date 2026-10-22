@@ -22,8 +22,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 4) {
-      setError("Password must be at least 4 characters long.");
+    if (password.length < 12) {
+      setError("Password must be at least 12 characters long.");
       return;
     }
 
@@ -31,7 +31,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/v1/auth/register", {
+      const res = await fetch("/api/v1/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

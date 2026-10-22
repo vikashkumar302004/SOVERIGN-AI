@@ -70,7 +70,7 @@ export default function SandboxPage() {
     const startTime = performance.now();
 
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/sandbox/execute", {
+      const res = await authFetch("/api/v1/sandbox/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ language, code }),

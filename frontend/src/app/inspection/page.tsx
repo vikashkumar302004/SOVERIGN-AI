@@ -44,7 +44,7 @@ export default function InspectionPage() {
   const fetchDocuments = async () => {
     setLoadingDocs(true);
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/documents/list");
+      const res = await authFetch("/api/v1/documents/list");
       if (res.ok) {
         const data = await res.json();
         const docs = data.documents || [];
@@ -72,7 +72,7 @@ export default function InspectionPage() {
     setWorkflowResult(null);
 
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/workflows/inspection-approval", {
+      const res = await authFetch("/api/v1/workflows/inspection-approval", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ document_id: Number(selectedDocId) }),
@@ -247,7 +247,7 @@ export default function InspectionPage() {
               Generated Deliverable File: <span className="text-primary">{workflowResult.deliverable_file_path.split('\\').pop()?.split('/').pop()}</span>
             </div>
             <a
-              href={`http://localhost:8000${workflowResult.download_url}`}
+              href={workflowResult.download_url}
               target="_blank"
               rel="noreferrer"
               className="px-6 py-3 accent-gradient accent-gradient-hover text-[#0A0E14] font-bold text-xs rounded-xl transition-all flex items-center space-x-2 shadow-md cursor-pointer active:scale-95"

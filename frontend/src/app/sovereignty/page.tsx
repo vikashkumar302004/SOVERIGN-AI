@@ -28,7 +28,7 @@ export default function SovereigntyPage() {
 
   const fetchNetworkLog = async () => {
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/system/network-log");
+      const res = await authFetch("/api/v1/system/network-log");
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }

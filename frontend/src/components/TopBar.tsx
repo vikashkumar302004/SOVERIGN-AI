@@ -30,11 +30,11 @@ export default function TopBar() {
     try {
       const isManagerOrAdmin = user?.role === "MANAGER" || user?.role === "ADMIN";
       const requests: Promise<any>[] = [
-        fetch("http://localhost:8000/health").catch(() => null),
+        fetch("/health").catch(() => null),
       ];
 
       if (isManagerOrAdmin) {
-        requests.push(authFetch("http://localhost:8000/api/v1/system/network-log").catch(() => null));
+        requests.push(authFetch("/api/v1/system/network-log").catch(() => null));
       }
 
       const results = await Promise.all(requests);
@@ -85,36 +85,34 @@ export default function TopBar() {
   const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : "U";
 
   return (
-    <header className="h-16 bg-surface/90 backdrop-blur-md border-b border-token px-6 flex items-center justify-between sticky top-0 z-30 shrink-0 select-none transition-colors duration-300">
+    <header className="h-12 bg-base/80 backdrop-blur-md border-b border-token/40 px-6 flex items-center justify-between sticky top-0 z-30 shrink-0 select-none transition-colors duration-300">
       {/* Title & Status */}
-      <div className="flex items-center space-x-4">
-        <h2 className="text-xs font-semibold text-primary tracking-wide uppercase font-sans">
-          Sovereign AI Engine
-        </h2>
-        <span className="text-muted opacity-40">|</span>
-        <div className="flex items-center space-x-2 font-mono text-xs">
-          <span className="text-muted">AIR-GAPPED PORT:</span>
-          <span className="text-accent font-medium">8000</span>
+      <div className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280]">
+        <span className="font-medium text-[#9CA3AF] tracking-wide uppercase font-sans text-xs">
+          Sovereign AI
+        </span>
+        <span className="text-[#374151]">/</span>
+        <div className="flex items-center space-x-1.5">
+          <span>PORT:</span>
+          <span className="text-[#9CA3AF]">8000</span>
         </div>
       </div>
 
       {/* Compact Combined Status Cluster, Theme Switcher & Profile Menu */}
-      <div className="flex items-center space-x-3">
-        {/* Compact Combined Status Cluster */}
+      <div className="flex items-center space-x-4">
+        {/* Near-invisible status dots */}
         <Link
           href="/sovereignty"
-          className="flex items-center space-x-3 px-3 py-1.5 rounded-full bg-surface border border-token hover:border-accent/40 transition-all text-xs font-mono shadow-sm"
+          className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
           title="Live Air-Gap Sovereignty Status"
         >
           <div className="flex items-center space-x-1.5">
-            <span className={`w-2 h-2 rounded-full ${isNetworkClean ? "bg-[#10B981] animate-pulse" : "bg-[#EF4444]"}`} />
-            <span className="text-primary font-medium">
-              {network ? `${network.total_outbound_attempts} Outbound` : "0 Outbound"}
-            </span>
+            <span className={`w-1.5 h-1.5 rounded-full ${isNetworkClean ? "bg-[#10B981]" : "bg-[#EF4444]"}`} />
+            <span>{network ? `${network.total_outbound_attempts} Outbound` : "0 Outbound"}</span>
           </div>
-          <span className="text-muted opacity-40">|</span>
-          <div className="flex items-center space-x-1.5 text-accent font-semibold">
-            <ShieldCheck className="w-3.5 h-3.5" />
+          <span className="text-[#374151]">|</span>
+          <div className="flex items-center space-x-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${isFullyOnline ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
             <span>{isFullyOnline ? "SECURE" : "DEGRADED"}</span>
           </div>
         </Link>
@@ -123,13 +121,13 @@ export default function TopBar() {
         <button
           onClick={toggleTheme}
           type="button"
-          className="p-2 rounded-xl bg-surface border border-token hover:bg-surface-hover hover:border-accent/40 text-primary transition-all shadow-sm flex items-center justify-center cursor-pointer active:scale-95"
+          className="p-1 rounded-lg hover:bg-surface-hover text-[#6B7280] hover:text-[#E5E7EB] transition-colors flex items-center justify-center cursor-pointer active:scale-95"
           title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {theme === "dark" ? (
-            <Sun className="w-4 h-4 text-[#FBBF24] hover:rotate-45 transition-transform" />
+            <Sun className="w-3.5 h-3.5 text-[#6B7280] hover:text-[#FBBF24] transition-colors" />
           ) : (
-            <Moon className="w-4 h-4 text-[#0EA5E9] hover:-rotate-12 transition-transform" />
+            <Moon className="w-3.5 h-3.5 text-[#6B7280] hover:text-[#0EA5E9] transition-colors" />
           )}
         </button>
 

@@ -31,7 +31,7 @@ export default function KnowledgePage() {
     setSearchedQuery(query.trim());
 
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/knowledge/search", {
+      const res = await authFetch("/api/v1/knowledge/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: query.trim(), top_k: 5 }),

@@ -16,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-base text-primary min-h-screen flex antialiased transition-colors duration-300">
+      <body className="bg-base text-primary min-h-screen flex antialiased transition-colors duration-300 font-sans">
         <ThemeProvider>
           <AuthProvider>
             <AppShell>{children}</AppShell>
@@ -26,3 +26,4 @@ export default function RootLayout({
     </html>
   );
 }
+

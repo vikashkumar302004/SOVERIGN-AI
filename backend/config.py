@@ -1,6 +1,10 @@
 import os
 import shutil
 
+
+def _csv_env(name: str, default: str) -> list[str]:
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
 TESSERACT_CMD = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 GXX_CMD = os.getenv(
     "GXX_CMD",
@@ -22,7 +26,25 @@ os.makedirs(SANDBOX_TEMP_DIR, exist_ok=True)
 os.makedirs(DELIVERABLES_DIR, exist_ok=True)
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "sovereign_ai_super_secret_jwt_key_2026_x987a")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+if ENVIRONMENT == "production" and SECRET_KEY == "dev-only-change-me":
+    raise RuntimeError("SECRET_KEY must be set to a strong value in production")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 8
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+CORS_ORIGINS = _csv_env(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000",
+)
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+ENABLE_CODE_SANDBOX = os.getenv(
+    "ENABLE_CODE_SANDBOX",
+    "true" if ENVIRONMENT == "development" else "false",
+).lower() in {"1", "true", "yes"}
+ALLOWED_UPLOAD_EXTENSIONS = {
+    ".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg",
+    ".bmp", ".tiff", ".txt", ".wav", ".mp3", ".m4a", ".ogg", ".webm",
+}
 

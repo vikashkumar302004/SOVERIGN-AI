@@ -16,7 +16,7 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/admin/users");
+      const res = await authFetch("/api/v1/admin/users");
       const data = await res.json();
       if (!res.ok) {
         setError(data.detail || `HTTP ${res.status}: Access Denied`);
@@ -40,7 +40,7 @@ export default function AdminPage() {
     setError(null);
 
     try {
-      const res = await authFetch(`http://localhost:8000/api/v1/admin/users/${userId}/role`, {
+      const res = await authFetch(`/api/v1/admin/users/${userId}/role`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: newRole }),

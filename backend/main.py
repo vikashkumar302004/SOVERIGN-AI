@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import List, Optional
+from typing import BinaryIO, List, Optional
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -98,10 +98,10 @@ app = FastAPI(title="Sovereign AI Backend", version="5.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID"],
 )
 
 
@@ -173,7 +173,43 @@ async def audit_logger_middleware(request: Request, call_next):
     return response
 
 
-OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_URL = config.OLLAMA_URL
+
+
+def _owned_session_query(db: Session, session_id: int, user_id: int):
+    return db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user_id,
+    )
+
+
+def _can_access_document(document: Document, user: User) -> bool:
+    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    return document.owner_id == user.id or role in {"MANAGER", "ADMIN"}
+
+
+def _validate_upload_name(filename: str) -> str:
+    safe_name = os.path.basename(filename)
+    ext = os.path.splitext(safe_name)[1].lower()
+    if not safe_name or ext not in config.ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    return safe_name
+
+
+def _save_upload_limited(source: BinaryIO, destination: str) -> int:
+    total = 0
+    try:
+        with open(destination, "wb") as buffer:
+            while chunk := source.read(1024 * 1024):
+                total += len(chunk)
+                if total > config.MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Uploaded file is too large")
+                buffer.write(chunk)
+        return total
+    except Exception:
+        if os.path.exists(destination):
+            os.remove(destination)
+        raise
 
 
 def chunk_text(text: str, max_chars: int = 400) -> List[str]:
@@ -252,9 +288,9 @@ async def register_user(request: UserRegisterRequest, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail="Username is required")
     if not request.email or not request.email.strip():
         raise HTTPException(status_code=400, detail="Email is required")
-    if not request.password or len(request.password) < 4:
+    if not request.password or len(request.password) < 12:
         raise HTTPException(
-            status_code=400, detail="Password must be at least 4 characters long"
+            status_code=400, detail="Password must be at least 12 characters long"
         )
 
     username_clean = request.username.strip()
@@ -444,6 +480,7 @@ async def list_chat_sessions(
 ):
     sessions = (
         db.query(ChatSession)
+        .filter(ChatSession.user_id == current_user.id)
         .order_by(ChatSession.is_starred.desc(), ChatSession.id.desc())
         .all()
     )
@@ -478,12 +515,9 @@ async def toggle_star_chat_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    session = _owned_session_query(db, session_id, current_user.id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
-
-    if not session.user_id:
-        session.user_id = current_user.id
 
     session.is_starred = not bool(session.is_starred)
     db.commit()
@@ -514,7 +548,7 @@ async def delete_chat_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    session = _owned_session_query(db, session_id, current_user.id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
@@ -534,7 +568,7 @@ async def get_session_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    session = _owned_session_query(db, session_id, current_user.id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
@@ -571,6 +605,7 @@ async def chat(
     http_req: Request,
     prompt: Optional[str] = Form(None),
     session_id: Optional[int] = Form(None),
+    document_id: Optional[int] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -581,6 +616,7 @@ async def chat(
             body = await http_req.json()
             prompt = body.get("prompt")
             session_id = body.get("session_id")
+            document_id = body.get("document_id")
         except Exception:
             pass
 
@@ -592,9 +628,11 @@ async def chat(
     # Retrieve or Create ChatSession
     session = None
     if session_id:
-        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not session:
-        session = ChatSession(title="New Chat")
+        session = _owned_session_query(db, session_id, current_user.id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+    if session is None:
+        session = ChatSession(title="New Chat", user_id=current_user.id)
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -605,22 +643,21 @@ async def chat(
     extracted_file_text = None
 
     if file and file.filename:
-        ext = os.path.splitext(file.filename)[1]
+        original_filename = _validate_upload_name(file.filename)
+        ext = os.path.splitext(original_filename)[1].lower()
         stored_name = f"{uuid.uuid4().hex}{ext}"
         saved_path = os.path.join(config.UPLOAD_DIR, stored_name)
 
         try:
-            with open(saved_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            file_size = os.path.getsize(saved_path)
+            file_size = _save_upload_limited(file.file, saved_path)
 
-            extraction = extract_text_from_file(saved_path, file.filename)
+            extraction = extract_text_from_file(saved_path, original_filename)
             extracted_file_text = extraction["extracted_text"]
             used_ocr = extraction["used_ocr"]
             ocr_confidence = extraction["ocr_confidence"]
 
             attached_doc_record = Document(
-                filename=file.filename,
+                filename=original_filename,
                 file_path=saved_path,
                 file_size=file_size,
                 extracted_text=extracted_file_text,
@@ -646,11 +683,19 @@ async def chat(
                 db.add(chunk_obj)
             db.commit()
 
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
-                detail=f"File attachment processing failed: {str(exc)}",
+                detail="File attachment processing failed",
             )
+
+    elif document_id is not None:
+        attached_doc_record = db.query(Document).filter(Document.id == document_id).first()
+        if not attached_doc_record or not _can_access_document(attached_doc_record, current_user):
+            raise HTTPException(status_code=404, detail="Document not found")
+        extracted_file_text = attached_doc_record.extracted_text
 
     model_used, routed_to_reason = classify_task(prompt_text)
 
@@ -728,6 +773,8 @@ async def chat(
                 async with client.stream("POST", f"{OLLAMA_URL}/api/chat", json=payload) as resp:
                     if resp.status_code == 200:
                         async for line in resp.aiter_lines():
+                            if await http_req.is_disconnected():
+                                return
                             if not line.strip():
                                 continue
                             try:
@@ -754,6 +801,8 @@ async def chat(
                         async with client.stream("POST", f"{OLLAMA_URL}/api/generate", json=gen_payload) as gen_resp:
                             if gen_resp.status_code == 200:
                                 async for line in gen_resp.aiter_lines():
+                                    if await http_req.is_disconnected():
+                                        return
                                     if not line.strip():
                                         continue
                                     try:
@@ -812,7 +861,15 @@ async def chat(
             }
             yield f"data: {json.dumps(done_frame)}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 
@@ -826,21 +883,22 @@ async def upload_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    ext = os.path.splitext(file.filename)[1]
+    original_filename = _validate_upload_name(file.filename)
+    ext = os.path.splitext(original_filename)[1].lower()
     stored_name = f"{uuid.uuid4().hex}{ext}"
     saved_path = os.path.join(config.UPLOAD_DIR, stored_name)
 
     try:
-        with open(saved_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        file_size = os.path.getsize(saved_path)
+        file_size = _save_upload_limited(file.file, saved_path)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to save uploaded file: {str(e)}"
         )
 
     try:
-        extraction = extract_text_from_file(saved_path, file.filename)
+        extraction = extract_text_from_file(saved_path, original_filename)
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as exc:
@@ -853,7 +911,7 @@ async def upload_document(
     ocr_confidence = extraction["ocr_confidence"]
 
     doc_record = Document(
-        filename=file.filename,
+        filename=original_filename,
         file_path=saved_path,
         file_size=file_size,
         extracted_text=extracted_text,
@@ -962,7 +1020,11 @@ async def knowledge_search(
 
     top_k = request.top_k if (request.top_k and request.top_k > 0) else 5
 
-    chunks = db.query(DocumentChunk).all()
+    role_str = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    chunks_query = db.query(DocumentChunk).join(Document)
+    if role_str not in {"MANAGER", "ADMIN"}:
+        chunks_query = chunks_query.filter(Document.owner_id == current_user.id)
+    chunks = chunks_query.all()
 
     if not chunks:
         http_req.state.audit_summary = f"Vector search for '{request.query[:30]}' (Knowledge base empty)"
@@ -1010,6 +1072,11 @@ async def sandbox_execute(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not config.ENABLE_CODE_SANDBOX:
+        raise HTTPException(
+            status_code=503,
+            detail="Code execution is disabled until an isolated sandbox worker is configured",
+        )
     if not request.code or not request.code.strip():
         raise HTTPException(status_code=400, detail="Code string must not be empty")
 
@@ -1053,7 +1120,7 @@ async def inspection_approval_workflow(
     current_user: User = Depends(get_current_user),
 ):
     doc_record = db.query(Document).filter(Document.id == request.document_id).first()
-    if not doc_record:
+    if not doc_record or not _can_access_document(doc_record, current_user):
         raise HTTPException(
             status_code=404, detail=f"Document with ID {request.document_id} not found."
         )
@@ -1105,9 +1172,18 @@ async def inspection_approval_workflow(
     search_query = f"Inspection standards SOP threshold limit {extracted_text[:150]}"
     query_vector = get_embedding(search_query)
 
-    chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id != request.document_id).all()
+    role_str = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    chunks_query = db.query(DocumentChunk).join(Document).filter(
+        DocumentChunk.document_id != request.document_id
+    )
+    if role_str not in {"MANAGER", "ADMIN"}:
+        chunks_query = chunks_query.filter(Document.owner_id == current_user.id)
+    chunks = chunks_query.all()
     if not chunks:
-        chunks = db.query(DocumentChunk).all()
+        fallback_query = db.query(DocumentChunk).join(Document)
+        if role_str not in {"MANAGER", "ADMIN"}:
+            fallback_query = fallback_query.filter(Document.owner_id == current_user.id)
+        chunks = fallback_query.all()
 
     related_context = []
     if chunks:
@@ -1359,7 +1435,7 @@ async def generate_deliverable(
     doc_context = ""
     if request.document_id:
         doc_record = db.query(Document).filter(Document.id == request.document_id).first()
-        if not doc_record:
+        if not doc_record or not _can_access_document(doc_record, current_user):
             raise HTTPException(
                 status_code=404,
                 detail=f"Document with ID {request.document_id} not found."
@@ -1488,7 +1564,10 @@ async def get_deliverable(
     http_req: Request,
     current_user: User = Depends(get_current_user),
 ):
-    file_path = os.path.join(config.DELIVERABLES_DIR, filename)
+    safe_filename = os.path.basename(filename)
+    if safe_filename != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    file_path = os.path.join(config.DELIVERABLES_DIR, safe_filename)
     if not os.path.exists(file_path):
         raise HTTPException(
             status_code=404, detail=f"Deliverable file '{filename}' not found."
@@ -1547,12 +1626,12 @@ async def transcribe_voice(
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="Audio file must be provided")
 
-    temp_filename = f"voice_{uuid.uuid4().hex}_{file.filename}"
+    original_filename = _validate_upload_name(file.filename)
+    temp_filename = f"voice_{uuid.uuid4().hex}_{original_filename}"
     temp_path = os.path.join(config.TEMP_AUDIO_DIR, temp_filename)
 
     try:
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        _save_upload_limited(file.file, temp_path)
 
         transcript = transcribe_audio_file(temp_path)
         if not transcript or not transcript.strip():

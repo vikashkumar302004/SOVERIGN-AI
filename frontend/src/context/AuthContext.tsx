@@ -93,6 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return res;
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw err;
+      }
       console.warn("authFetch network error:", url, err);
       return new Response(
         JSON.stringify({ detail: "Backend service unavailable or network error." }),

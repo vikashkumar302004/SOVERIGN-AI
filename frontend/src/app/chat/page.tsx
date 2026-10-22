@@ -23,6 +23,7 @@ import {
   Mic,
   MicOff,
   Loader2,
+  Square,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
@@ -99,6 +100,18 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const generationAbortRef = useRef<AbortController | null>(null);
+
+  const stopGeneration = () => {
+    generationAbortRef.current?.abort();
+    generationAbortRef.current = null;
+    setLoading(false);
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.isStreaming ? { ...message, isStreaming: false } : message
+      )
+    );
+  };
 
   const handleToggleRecording = async () => {
     if (isRecording) {
@@ -135,7 +148,7 @@ export default function ChatPage() {
             const formData = new FormData();
             formData.append("file", audioBlob, "voice_input.webm");
 
-            const res = await authFetch("http://localhost:8000/api/v1/voice/transcribe", {
+            const res = await authFetch("/api/v1/voice/transcribe", {
               method: "POST",
               body: formData,
             });
@@ -192,7 +205,7 @@ export default function ChatPage() {
   const fetchSessions = async () => {
     setFetchingSessions(true);
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/chat/sessions");
+      const res = await authFetch("/api/v1/chat/sessions");
       if (!res.ok) throw new Error("Failed to fetch chat sessions");
       const data = await res.json();
       const loadedSessions: ChatSession[] = (data.sessions || []).map((s: any) => ({
@@ -224,7 +237,7 @@ export default function ChatPage() {
     setError(null);
     try {
       const res = await authFetch(
-        `http://localhost:8000/api/v1/chat/sessions/${sessionId}/messages`
+        `/api/v1/chat/sessions/${sessionId}/messages`
       );
       if (!res.ok) throw new Error("Failed to load message history");
       const data = await res.json();
@@ -250,7 +263,7 @@ export default function ChatPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/chat/sessions", {
+      const res = await authFetch("/api/v1/chat/sessions", {
         method: "POST",
       });
       if (!res.ok) throw new Error("Failed to create new session");
@@ -277,7 +290,7 @@ export default function ChatPage() {
     e.stopPropagation();
     try {
       const res = await authFetch(
-        `http://localhost:8000/api/v1/chat/sessions/${sessionId}/star`,
+        `/api/v1/chat/sessions/${sessionId}/star`,
         { method: "PATCH" }
       );
       if (!res.ok) {
@@ -305,7 +318,7 @@ export default function ChatPage() {
 
     try {
       const res = await authFetch(
-        `http://localhost:8000/api/v1/chat/sessions/${sessionId}`,
+        `/api/v1/chat/sessions/${sessionId}`,
         { method: "DELETE" }
       );
       if (!res.ok) {
@@ -327,7 +340,7 @@ export default function ChatPage() {
   const fetchRegistryDocs = async () => {
     setLoadingDocs(true);
     try {
-      const res = await authFetch("http://localhost:8000/api/v1/documents/list");
+      const res = await authFetch("/api/v1/documents/list");
       if (res.ok) {
         const data = await res.json();
         setRegistryDocs(data.documents || []);
@@ -375,7 +388,7 @@ export default function ChatPage() {
     let currentSessionId = activeSessionId;
     if (!currentSessionId) {
       try {
-        const res = await authFetch("http://localhost:8000/api/v1/chat/sessions", {
+        const res = await authFetch("/api/v1/chat/sessions", {
           method: "POST",
         });
         if (!res.ok) throw new Error("Failed to create chat session");
@@ -429,11 +442,16 @@ export default function ChatPage() {
       }
       if (attachedFile) {
         formData.append("file", attachedFile);
+      } else if (registryDoc) {
+        formData.append("document_id", String(registryDoc.id));
       }
 
-      const res = await authFetch("http://localhost:8000/api/v1/chat", {
+      const controller = new AbortController();
+      generationAbortRef.current = controller;
+      const res = await authFetch("/api/v1/chat", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -452,6 +470,7 @@ export default function ChatPage() {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
+          buffer = buffer.replace(/\r\n/g, "\n");
           const parts = buffer.split("\n\n");
           buffer = parts.pop() || "";
 
@@ -501,7 +520,12 @@ export default function ChatPage() {
                     )
                   );
                 } else if (data.type === "error") {
-                  setError(data.error);
+                  setError(data.error || "Generation failed");
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === aiMsgId ? { ...m, isStreaming: false } : m
+                    )
+                  );
                 }
               } catch (parseErr) {
                 console.error("SSE parse error:", parseErr);
@@ -516,9 +540,12 @@ export default function ChatPage() {
       );
       fetchSessions();
     } catch (err: any) {
-      setError(err.message || "Failed to send message");
-      setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
+      if (err?.name !== "AbortError") {
+        setError(err.message || "Failed to send message");
+        setMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
+      }
     } finally {
+      generationAbortRef.current = null;
       setLoading(false);
     }
   };
@@ -531,33 +558,45 @@ export default function ChatPage() {
     d.filename.toLowerCase().includes(docSearchQuery.toLowerCase())
   );
 
+  // Helper to get per-model colored dot style
+  const getModelDotClass = (modelName?: string) => {
+    if (!modelName) return "bg-[#22D3EE] shadow-[0_0_6px_#22D3EE]";
+    const m = modelName.toLowerCase();
+    if (m.includes("llama")) return "bg-[#22D3EE] shadow-[0_0_6px_#22D3EE]";
+    if (m.includes("coder")) return "bg-[#A855F7] shadow-[0_0_6px_#A855F7]";
+    if (m.includes("llava")) return "bg-[#F59E0B] shadow-[0_0_6px_#F59E0B]";
+    if (m.includes("qwen")) return "bg-[#10B981] shadow-[0_0_6px_#10B981]";
+    return "bg-[#22D3EE] shadow-[0_0_6px_#22D3EE]";
+  };
+
   const starredSessions = sessions.filter((s) => s.is_starred);
   const recentSessions = sessions.filter((s) => !s.is_starred);
 
   // Helper to render session item button
   const renderSessionButton = (sess: ChatSession) => {
     const isActive = sess.id === activeSessionId;
-    const relativeTime = formatRelativeTime(sess.created_at);
 
     return (
       <div
         key={sess.id}
         onClick={() => loadSessionMessages(sess.id)}
-        className={`w-full cursor-pointer text-left p-2.5 rounded-xl transition-all flex items-start gap-2.5 group relative ${
+        className={`w-full cursor-pointer text-left p-2.5 rounded-xl transition-all duration-150 ease-out active:scale-[0.98] flex items-start gap-2.5 group relative ${
           isActive
             ? "bg-[#22D3EE]/10 border-l-2 border-l-[#22D3EE] border-y border-r border-[#232838] text-[#22D3EE] font-medium"
-            : "bg-transparent border border-transparent text-[#6B7280] hover:bg-[#12161F] hover:text-[#E5E7EB]"
+            : "bg-transparent border border-transparent text-[#4B5563] hover:bg-[#12161F]/60 hover:text-[#E5E7EB]"
         }`}
       >
-        <MessageSquare className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? "text-[#22D3EE]" : "text-[#6B7280] group-hover:text-[#E5E7EB]"}`} />
-        <div className="overflow-hidden flex-1 pr-12">
+        <MessageSquare className={`w-4 h-4 mt-0.5 shrink-0 transition-opacity ${isActive ? "text-[#22D3EE] opacity-100" : "text-[#4B5563] opacity-50 group-hover:opacity-100 group-hover:text-[#E5E7EB]"}`} />
+        <div className="overflow-hidden flex-1 pr-10">
           <div className="flex items-center justify-between gap-1">
-            <span className="text-xs font-medium truncate">{sess.title}</span>
+            <span className={`text-[13px] font-medium truncate ${isActive ? "text-[#22D3EE]" : "text-[#D1D5DB]"}`}>
+              {sess.title}
+            </span>
           </div>
           {sess.last_message_preview && (
-            <div className="text-[11px] text-[#6B7280] truncate font-mono mt-0.5">
+            <span className="text-[11px] text-[#4B5563] truncate block font-mono mt-0.5">
               {sess.last_message_preview}
-            </div>
+            </span>
           )}
         </div>
 
@@ -567,7 +606,7 @@ export default function ChatPage() {
             type="button"
             onClick={(e) => handleToggleStar(e, sess.id)}
             title={sess.is_starred ? "Unstar Chat" : "Star Chat"}
-            className="p-1 text-[#6B7280] hover:text-[#FBBF24] transition-colors"
+            className="p-1 text-[#6B7280] hover:text-[#FBBF24] transition-colors active:scale-95"
           >
             <Star
               className={`w-3.5 h-3.5 ${
@@ -582,7 +621,7 @@ export default function ChatPage() {
             type="button"
             onClick={(e) => handleDeleteSession(e, sess.id)}
             title="Delete Chat Session"
-            className="p-1 text-[#6B7280] hover:text-[#F87171] transition-colors"
+            className="p-1 text-[#6B7280] hover:text-[#F87171] transition-colors active:scale-95"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -596,31 +635,34 @@ export default function ChatPage() {
     );
   };
 
+  const hasInputContent = Boolean(input.trim() || selectedFile || selectedRegistryDoc);
+
   return (
-    <div className="h-full min-h-0 flex w-full bg-base overflow-hidden font-sans select-none transition-colors duration-300">
+    <div className="h-full min-h-0 flex w-full bg-[#0A0E14] overflow-hidden font-sans select-none transition-colors duration-300">
       {/* History Session Sidebar (Collapsible) */}
       {showHistorySidebar && (
-        <div className="w-64 border-r border-token bg-base flex flex-col shrink-0 overflow-hidden shadow-xl transition-all duration-300">
-          <div className="p-3.5 border-b border-token flex items-center justify-between">
+        <div className="w-64 border-r border-[#232838]/60 bg-[#0A0E14] flex flex-col shrink-0 overflow-hidden shadow-xl transition-all duration-300">
+          <div className="p-3.5 border-b border-[#232838]/60 flex items-center justify-between">
+            {/* ONE BOLD ACCENT MOMENT: Solid Cyan New Chat Button */}
             <button
               onClick={createNewSession}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 accent-gradient accent-gradient-hover text-[#0A0E14] font-bold py-2 px-3 rounded-lg text-xs transition-all shadow-md active:scale-95 disabled:opacity-50 tracking-wide uppercase"
+              className="flex-1 flex items-center justify-center gap-2 bg-[#22D3EE] hover:bg-[#38BDF8] text-[#0A0E14] font-semibold text-xs py-2 px-3 rounded-lg shadow-md transition-all duration-150 active:scale-95 disabled:opacity-50 tracking-wide uppercase font-sans cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>New Chat</span>
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-3">
+          <div className="flex-1 overflow-y-auto p-2 space-y-8">
             {fetchingSessions && sessions.length === 0 ? (
-              <div className="p-3 text-xs text-muted font-mono">Loading...</div>
+              <div className="p-3 text-xs text-[#4B5563] font-mono">Loading...</div>
             ) : (
               <>
-                {/* Starred Section (Only visible if starred sessions exist) */}
+                {/* Starred Section */}
                 {starredSessions.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="px-2.5 py-1 text-[10px] font-mono text-[#F59E0B] uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                  <div className="space-y-[2px]">
+                    <div className="px-2.5 py-1 text-[10px] font-mono text-[#F59E0B] uppercase tracking-[0.15em] font-medium flex items-center gap-1.5">
                       <Star className="w-3 h-3 fill-[#F59E0B]" />
                       <span>STARRED</span>
                     </div>
@@ -629,12 +671,12 @@ export default function ChatPage() {
                 )}
 
                 {/* Recent Chats Section */}
-                <div className="space-y-1">
-                  <div className="px-2.5 py-1 text-[10px] font-mono text-muted uppercase tracking-widest font-semibold">
+                <div className="space-y-[2px]">
+                  <div className="px-2.5 py-1 text-[10px] font-mono text-[#374151] uppercase tracking-[0.15em] font-medium">
                     RECENT CHATS
                   </div>
                   {recentSessions.length === 0 && starredSessions.length === 0 ? (
-                    <div className="p-3 text-xs text-muted font-mono">No previous chats</div>
+                    <div className="p-3 text-xs text-[#4B5563] font-mono">No previous chats</div>
                   ) : (
                     recentSessions.map(renderSessionButton)
                   )}
@@ -646,47 +688,36 @@ export default function ChatPage() {
       )}
 
       {/* Main Full-Width Chat Canvas Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-base relative transition-colors duration-300">
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#0A0E14] relative transition-colors duration-300 overflow-hidden">
         {/* Slim Header Row */}
-        <div className="px-6 py-3 flex items-center justify-between border-b border-token bg-base shrink-0">
-          <div className="flex items-center space-x-3">
+        <div className="px-6 py-2.5 flex items-center justify-between border-b border-[#232838]/60 bg-[#0A0E14] shrink-0 relative z-10">
+          <div className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280]">
             <button
               onClick={() => setShowHistorySidebar(!showHistorySidebar)}
-              className="p-1.5 rounded-lg bg-surface hover:bg-surface-hover border border-token text-muted hover:text-primary transition-all shadow-sm"
+              className="p-1 rounded-md hover:bg-[#12161F] text-[#6B7280] hover:text-[#E5E7EB] transition-colors active:scale-95"
               title={showHistorySidebar ? "Collapse History" : "Expand History"}
             >
               <PanelLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-2">
-              <img
-                src="/sovereign_logo.png"
-                alt="Sovereign AI Logo"
-                className="w-6 h-6 rounded-lg object-cover border border-accent/40 shadow-sm"
-              />
-              <h1 className="text-xs font-semibold text-primary tracking-tight">
+              <span className="text-xs font-semibold text-[#9CA3AF] tracking-tight uppercase font-sans">
                 Session #{activeSessionId || "New"}
-              </h1>
+              </span>
             </div>
           </div>
         </div>
 
         {/* Scrollable Messages Area */}
-        <div className="flex-1 overflow-y-auto w-full">
-          <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-8 space-y-8">
+        <div className="flex-1 overflow-y-auto w-full relative z-10">
+          {/* Spacing Rhythm: 40px vertical gap between speaker messages; flex justify-end hugs bottom when sparse */}
+          <div className={`max-w-3xl mx-auto w-full px-4 md:px-6 py-8 space-y-10 ${messages.length > 0 ? "min-h-full flex flex-col justify-end" : ""}`}>
             {messages.length === 0 ? (
-              /* Empty State for Fresh Session with Official Logo */
-              <div className="h-[55vh] flex flex-col items-center justify-center text-center space-y-4 select-none">
-                <img
-                  src="/sovereign_logo.png"
-                  alt="Sovereign AI Official Logo"
-                  className="w-16 h-16 rounded-2xl border border-accent/40 shadow-xl object-cover"
-                />
-                <div>
-                  <h3 className="text-base font-semibold text-primary">Start a Conversation with Sovereign AI</h3>
-                  <p className="text-xs font-mono text-muted mt-1 max-w-sm">
-                    Local LLM reasoning in strict air-gapped security with zero data leaks.
-                  </p>
-                </div>
+              /* Truly Empty Session: Restrained 48px Icon + 1 line muted text */
+              <div className="h-[55vh] flex flex-col items-center justify-center text-center space-y-3 select-none">
+                <MessageSquare className="w-12 h-12 text-[#374151]" />
+                <p className="text-xs text-[#6B7280] font-mono">
+                  Start a conversation with Sovereign AI
+                </p>
               </div>
             ) : (
               messages.map((msg) => (
@@ -694,30 +725,30 @@ export default function ChatPage() {
                   key={msg.id}
                   className={`flex items-start gap-4 transition-all ${
                     msg.sender === "user"
-                      ? "flex-row-reverse space-x-reverse max-w-[85%] sm:max-w-[70%] ml-auto"
-                      : "max-w-[85%] sm:max-w-[80%]"
+                      ? "flex-row-reverse space-x-reverse max-w-[85%] sm:max-w-[75%] ml-auto"
+                      : "max-w-[90%] sm:max-w-[85%]"
                   }`}
                 >
                   {/* Circular Avatars */}
                   {msg.sender === "user" ? (
-                    <div className="w-9 h-9 rounded-full accent-gradient border border-accent/40 text-[#0A0E14] font-bold text-xs flex items-center justify-center shrink-0 shadow-md select-none">
+                    <div className="w-8 h-8 rounded-full bg-[#1F293D] border border-white/[0.08] text-[#E5E7EB] font-medium text-xs flex items-center justify-center shrink-0 select-none">
                       {userInitial}
                     </div>
                   ) : (
                     <img
                       src="/sovereign_logo.png"
                       alt="Sovereign AI Logo"
-                      className="w-9 h-9 rounded-full border border-accent/40 object-cover shadow-md shrink-0 select-none"
+                      className="w-8 h-8 rounded-lg border border-white/[0.08] object-cover shrink-0 select-none"
                     />
                   )}
 
                   {/* Message Content Container */}
                   <div className="flex-1 overflow-hidden">
-                    {/* User Message Bubble */}
+                    {/* User Message Bubble: Restrained Dark Elevated Surface (#1A2030) with 2px Cyan Left Accent */}
                     {msg.sender === "user" ? (
-                      <div className="accent-gradient text-[#0A0E14] font-medium rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-md border border-accent/40 text-sm leading-relaxed">
+                      <div className="bg-[#1A2030] text-[#E5E7EB] rounded-2xl rounded-tr-sm px-4 py-3 border border-white/[0.08] border-l-2 border-l-[#22D3EE] text-sm leading-relaxed shadow-sm font-sans">
                         {msg.attachedFileName && (
-                          <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/20 text-[#0A0E14] text-xs font-mono font-semibold">
+                          <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/30 text-[#22D3EE] text-xs font-mono">
                             <FileText className="w-3.5 h-3.5" />
                             <span>{msg.attachedFileName}</span>
                           </div>
@@ -725,10 +756,10 @@ export default function ChatPage() {
                         <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
                       </div>
                     ) : (
-                      /* Assistant Content */
-                      <div className="text-primary text-sm leading-relaxed pt-0.5">
+                      /* Assistant Content: 15px leading-[1.7] #D1D5DB with pl-6 Rail Alignment under avatar */
+                      <div className="text-[#D1D5DB] text-[15px] leading-[1.7] pt-0.5">
                         {msg.attachedFileName && (
-                          <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs font-mono">
+                          <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161B26] border border-white/[0.08] text-[#22D3EE] text-xs font-mono">
                             <FileText className="w-3.5 h-3.5" />
                             <span>Attached: {msg.attachedFileName}</span>
                           </div>
@@ -739,17 +770,17 @@ export default function ChatPage() {
                           isStreaming={msg.isStreaming}
                         />
 
-                        {/* Model Badge & Timestamp Footer */}
+                        {/* Model Badge with Colored Dot & Monospace Timestamp Footer */}
                         {(msg.modelUsed || msg.timestamp) && (
-                          <div className="flex items-center gap-3 mt-4 pt-2 border-t border-token">
+                          <div className="flex items-center gap-3 mt-4 pt-2 border-t border-[#232838]/50">
                             {msg.modelUsed && (
-                              <span className="px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent/30 text-accent font-mono text-[11px] font-medium flex items-center gap-1.5 shadow-sm select-none">
-                                <Cpu className="w-3 h-3 text-accent" />
-                                {msg.modelUsed}
+                              <span className="px-2.5 py-0.5 rounded-full bg-[#161B26] border border-white/[0.08] text-[#9CA3AF] font-mono text-[11px] font-medium flex items-center gap-1.5 select-none">
+                                <span className={`w-1.5 h-1.5 rounded-full ${getModelDotClass(msg.modelUsed)}`} />
+                                <span>{msg.modelUsed}</span>
                               </span>
                             )}
                             {msg.timestamp && (
-                              <span className="text-muted text-xs font-mono select-none">
+                              <span className="text-[#6B7280] text-[10px] font-mono tracking-wider select-none">
                                 {msg.timestamp}
                               </span>
                             )}
@@ -764,22 +795,22 @@ export default function ChatPage() {
 
             {/* "Thinking & initializing..." Indicator */}
             {loading && messages.length > 0 && messages[messages.length - 1]?.sender === "assistant" && !messages[messages.length - 1]?.content && (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <img
                   src="/sovereign_logo.png"
                   alt="Sovereign AI Logo"
-                  className="w-9 h-9 rounded-full border border-accent/40 object-cover shadow-md shrink-0 animate-pulse"
+                  className="w-8 h-8 rounded-lg border border-white/[0.08] object-cover shrink-0 animate-pulse"
                 />
-                <div className="px-3.5 py-1.5 bg-surface border border-token text-xs font-mono text-muted rounded-full flex items-center gap-2 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
-                  <span>Thinking & initializing stream...</span>
+                <div className="px-3 py-1 bg-[#161B26] border border-white/[0.08] text-xs font-mono text-[#6B7280] rounded-full flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-ping" />
+                  <span>Thinking...</span>
                 </div>
               </div>
             )}
 
             {/* Error Banner */}
             {error && (
-              <div className="p-4 rounded-2xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] text-xs font-mono flex items-center gap-2.5 shadow-lg">
+              <div className="p-3.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] text-xs font-mono flex items-center gap-2.5">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>Backend Error: {error}</span>
               </div>
@@ -789,20 +820,23 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Pinned Fixed Bottom Input Bar */}
-        <div className="sticky bottom-0 bg-gradient-to-t from-base via-base/95 to-transparent pt-2 pb-4 px-4 z-20">
+        {/* Scroll-fade bottom gradient */}
+        <div className="absolute bottom-16 left-0 right-0 h-10 bg-gradient-to-t from-[#0D1117] to-transparent pointer-events-none z-10" />
+
+        {/* Requirement 5: Visually Anchored Bottom Input Zone (#0D1117 with 1px top border) */}
+        <div className="bg-[#0D1117] border-t border-white/[0.06] py-3 px-4 z-20 sticky bottom-0">
           <div className="max-w-3xl mx-auto w-full relative">
             {/* Removable Selected File Chip */}
             {(selectedFile || selectedRegistryDoc) && (
-              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/30 text-accent text-xs font-mono shadow-md backdrop-blur-md">
-                <FileText className="w-4 h-4 text-accent" />
+              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#161B26] border border-white/[0.08] text-[#22D3EE] text-xs font-mono shadow-sm">
+                <FileText className="w-3.5 h-3.5 text-[#22D3EE]" />
                 <span className="truncate max-w-xs">
                   {selectedFile ? selectedFile.name : selectedRegistryDoc?.filename}
                 </span>
                 <button
                   type="button"
                   onClick={removeAttachment}
-                  className="hover:text-[#EF4444] transition-colors ml-1"
+                  className="hover:text-[#EF4444] transition-colors ml-1 active:scale-95"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -813,65 +847,61 @@ export default function ChatPage() {
             {showAttachPopover && (
               <div
                 ref={popoverRef}
-                className="absolute bottom-16 left-0 w-80 bg-surface border border-token rounded-2xl shadow-2xl p-3 z-50 animate-fadeIn"
+                className="absolute bottom-14 left-0 w-80 bg-[#161B26] border border-white/[0.1] rounded-xl shadow-2xl p-3 z-50 animate-fadeIn"
               >
-                <div className="text-xs font-semibold text-primary mb-2 flex items-center justify-between">
+                <div className="text-xs font-semibold text-[#E5E7EB] mb-2 flex items-center justify-between uppercase tracking-wider font-mono">
                   <span>Attach Document</span>
-                  <button onClick={() => setShowAttachPopover(false)} className="text-muted hover:text-primary">
+                  <button onClick={() => setShowAttachPopover(false)} className="text-[#6B7280] hover:text-[#E5E7EB] active:scale-95">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  {/* Option 1: OS File Upload */}
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center space-x-2.5 p-2.5 rounded-xl bg-base hover:bg-surface-hover border border-token text-xs text-primary transition-all"
+                    className="w-full flex items-center space-x-2.5 p-2.5 rounded-lg bg-[#0A0E14] hover:bg-[#1F2533] border border-white/[0.06] text-xs text-[#E5E7EB] transition-all"
                   >
-                    <Upload className="w-4 h-4 text-accent" />
+                    <Upload className="w-4 h-4 text-[#22D3EE]" />
                     <div className="text-left">
-                      <div className="font-semibold">Upload from Device</div>
-                      <div className="text-[10px] text-muted">Select PDF, DOCX, TXT from OS</div>
+                      <div className="font-medium">Upload from Device</div>
+                      <div className="text-[10px] text-[#6B7280]">Select PDF, DOCX, TXT from OS</div>
                     </div>
                   </button>
 
-                  {/* Option 2: Document Registry Scrollable List */}
-                  <div className="pt-2 border-t border-token">
-                    <div className="text-[11px] font-mono text-muted uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <div className="pt-2 border-t border-white/[0.06]">
+                    <div className="text-[10px] font-mono text-[#6B7280] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                       <span>Choose from Registry</span>
-                      <Database className="w-3 h-3 text-accent" />
+                      <Database className="w-3 h-3 text-[#22D3EE]" />
                     </div>
 
-                    {/* Registry Search */}
                     <div className="relative mb-2">
-                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-muted" />
+                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-[#6B7280]" />
                       <input
                         type="text"
                         value={docSearchQuery}
                         onChange={(e) => setDocSearchQuery(e.target.value)}
                         placeholder="Search registry files..."
-                        className="w-full bg-base border border-token rounded-lg pl-8 pr-2 py-1 text-xs text-primary placeholder-muted outline-none"
+                        className="w-full bg-[#0A0E14] border border-white/[0.06] rounded-md pl-8 pr-2 py-1 text-xs text-[#E5E7EB] placeholder-[#4B5563] outline-none"
                       />
                     </div>
 
-                    {/* Docs Scroll List */}
                     <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                       {loadingDocs ? (
-                        <div className="text-[11px] text-muted font-mono p-2">Loading documents...</div>
+                        <div className="text-[11px] text-[#6B7280] font-mono p-2">Loading documents...</div>
                       ) : filteredDocs.length === 0 ? (
-                        <div className="text-[11px] text-muted font-mono p-2">No documents found</div>
+                        <div className="text-[11px] text-[#6B7280] font-mono p-2">No documents found</div>
                       ) : (
                         filteredDocs.map((doc) => (
                           <button
                             key={doc.id}
                             onClick={() => handleSelectRegistryDoc(doc)}
-                            className="w-full text-left p-2 rounded-lg bg-base hover:bg-surface-hover border border-transparent hover:border-token transition-all flex items-center justify-between text-xs text-primary group"
+                            className="w-full text-left p-2 rounded-md bg-[#0A0E14] hover:bg-[#1F2533] border border-transparent hover:border-white/[0.06] transition-all flex items-center justify-between text-xs text-[#E5E7EB] group"
                           >
                             <div className="flex items-center space-x-2 truncate">
-                              <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
+                              <FileText className="w-3.5 h-3.5 text-[#22D3EE] shrink-0" />
                               <span className="truncate">{doc.filename}</span>
                             </div>
-                            <Check className="w-3.5 h-3.5 text-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Check className="w-3.5 h-3.5 text-[#22D3EE] opacity-0 group-hover:opacity-100 transition-opacity" />
                           </button>
                         ))
                       )}
@@ -883,15 +913,15 @@ export default function ChatPage() {
 
             {/* Voice Recording / Transcribing Live Banner Chips */}
             {isRecording && (
-              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-mono shadow-sm animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>Recording voice input... Click mic icon again to stop.</span>
               </div>
             )}
             {isTranscribing && (
-              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-accent/10 border border-accent/30 text-accent text-xs font-mono shadow-sm">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-                <span>Transcribing voice recording offline with faster-whisper...</span>
+              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#22D3EE]/10 border border-[#22D3EE]/20 text-[#22D3EE] text-xs font-mono">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#22D3EE]" />
+                <span>Transcribing audio...</span>
               </div>
             )}
 
@@ -904,41 +934,38 @@ export default function ChatPage() {
                 className="hidden"
               />
 
-              {/* Input Bar Container */}
-              <div className="bg-surface/90 backdrop-blur-xl border border-token focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/30 rounded-2xl p-2 flex items-center gap-2 shadow-2xl transition-all">
-                {/* Paperclip Button */}
+              {/* Requirement 5: bg-[#161B26], border border-white/[0.08], rounded-xl, focus-within:border-[#22D3EE]/40 with NO glow ring */}
+              <div className="bg-[#161B26] border border-white/[0.08] focus-within:border-[#22D3EE]/40 rounded-xl p-1.5 flex items-center gap-2 shadow-sm transition-colors outline-none">
                 <button
                   type="button"
                   onClick={handleOpenAttachPopover}
                   disabled={loading || isRecording || isTranscribing}
                   title="Attach File or Select from Registry"
-                  className="p-2 text-muted hover:text-accent disabled:opacity-40 transition-colors rounded-xl hover:bg-surface-hover shrink-0"
+                  className="p-2 text-[#6B7280] hover:text-[#22D3EE] disabled:opacity-40 transition-colors rounded-lg shrink-0"
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
 
-                {/* Microphone STT Button */}
                 <button
                   type="button"
                   onClick={handleToggleRecording}
                   disabled={loading || isTranscribing}
                   title={isRecording ? "Stop Recording & Transcribe" : "Start Voice Input (STT)"}
-                  className={`p-2 transition-all rounded-xl shrink-0 flex items-center justify-center ${
+                  className={`p-2 transition-colors rounded-lg shrink-0 flex items-center justify-center ${
                     isRecording
-                      ? "bg-rose-500/20 text-rose-500 border border-rose-500/40 animate-pulse"
-                      : "text-muted hover:text-accent hover:bg-surface-hover disabled:opacity-40"
+                      ? "bg-rose-500/20 text-rose-400"
+                      : "text-[#6B7280] hover:text-[#22D3EE] disabled:opacity-40"
                   }`}
                 >
                   {isTranscribing ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#22D3EE]" />
                   ) : isRecording ? (
-                    <MicOff className="w-4 h-4 text-rose-500" />
+                    <MicOff className="w-4 h-4 text-rose-400" />
                   ) : (
                     <Mic className="w-4 h-4" />
                   )}
                 </button>
 
-                {/* Prompt Text Input */}
                 <input
                   type="text"
                   value={input}
@@ -950,17 +977,26 @@ export default function ChatPage() {
                       ? "Transcribing audio..."
                       : "Ask Sovereign AI anything..."
                   }
-                  className="w-full bg-transparent text-primary placeholder-muted text-sm outline-none px-2 py-2 font-sans"
+                  className="w-full bg-transparent text-[#E5E7EB] placeholder-[#4B5563] text-sm outline-none px-2 py-1.5 font-sans"
                   disabled={loading || isTranscribing}
                 />
 
-                {/* Send Button */}
                 <button
-                  type="submit"
-                  disabled={loading || isRecording || isTranscribing || (!input.trim() && !selectedFile && !selectedRegistryDoc)}
-                  className="p-2.5 rounded-xl accent-gradient text-[#0A0E14] accent-gradient-hover shadow-md shadow-accent/20 disabled:opacity-30 transition-all active:scale-95 shrink-0"
+                  type={loading ? "button" : "submit"}
+                  onClick={loading ? stopGeneration : undefined}
+                  disabled={!loading && (isRecording || isTranscribing || !hasInputContent)}
+                  title={loading ? "Stop generation" : "Send message"}
+                  className={`p-2 rounded-lg transition-all duration-150 active:scale-95 shrink-0 flex items-center justify-center ${
+                    loading || hasInputContent
+                      ? "bg-[#22D3EE] hover:bg-[#38BDF8] text-[#0A0E14] opacity-100 cursor-pointer"
+                      : "bg-[#1F2533] text-[#4B5563] opacity-40 cursor-not-allowed"
+                  }`}
                 >
-                  <Send className="w-4 h-4 stroke-[2.5]" />
+                  {loading ? (
+                    <Square className="w-4 h-4 fill-current" />
+                  ) : (
+                    <Send className="w-4 h-4 stroke-[2.5]" />
+                  )}
                 </button>
               </div>
             </form>

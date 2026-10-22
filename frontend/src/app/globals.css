@@ -59,19 +59,49 @@ html.light {
   --user-btn-text: #FFFFFF;
 }
 
-body {
-  background-color: var(--bg-base);
+/* Layering & Depth: Radial Gradient + Inline SVG Noise Grain Texture */
+html.dark body,
+:root body {
+  background-color: #0A0E14;
+  background-image: 
+    radial-gradient(ellipse 120% 120% at 0% 0%, #0F1520 0%, #0A0E14 100%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
   color: var(--text-primary);
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
+html.light body {
+  background-color: #F8FAFC;
+  background-image: 
+    radial-gradient(ellipse 120% 120% at 0% 0%, #FFFFFF 0%, #F1F5F9 100%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
+  color: var(--text-primary);
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Typography Classes */
+.font-heading {
+  font-family: 'Segoe UI', 'Arial', system-ui, sans-serif;
+}
+.font-sans {
+  font-family: 'Segoe UI', 'Arial', system-ui, sans-serif;
+}
+.font-mono {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
 /* Custom Design Utility Classes for Dynamic Theme Tokens */
-.bg-base { background-color: var(--bg-base); }
+.bg-base { background-color: transparent; }
 .bg-surface { background-color: var(--surface-card); }
 .bg-surface-hover:hover { background-color: var(--surface-hover); }
 .border-token { border-color: var(--border-color); }
+
+/* Card Top Highlight Border simulating light hitting top edge */
+.card-top-border {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
 
 .accent-gradient {
   background: var(--accent-gradient);
@@ -83,6 +113,27 @@ body {
 
 .text-accent { color: var(--accent-primary); }
 
+/* Soft cyan glow bleeding behind active sidebar item */
+.sidebar-active-glow {
+  box-shadow: 0 0 20px -2px rgba(34, 211, 238, 0.25), 0 0 8px 0 rgba(34, 211, 238, 0.15);
+}
+
+/* Topbar Ambient Ambient Pulse Line */
+@keyframes ambientShift {
+  0% { background-position: 0% 50%; opacity: 0.7; }
+  50% { background-position: 100% 50%; opacity: 1; }
+  100% { background-position: 0% 50%; opacity: 0.7; }
+}
+
+.ambient-accent-line {
+  background: linear-gradient(90deg, #22D3EE, #0EA5E9, #A855F7, #22D3EE);
+  background-size: 200% 100%;
+}
+
+.ambient-accent-active {
+  animation: ambientShift 2s linear infinite;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -90,7 +141,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-base);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -110,3 +161,87 @@ body {
 .animate-fadeIn {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Login Landing Page Staggered & Ambient Animations */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+@keyframes breathingGlow {
+  0% {
+    background-position: 20% 20%;
+    opacity: 0.6;
+  }
+  50% {
+    background-position: 80% 80%;
+    opacity: 1;
+  }
+  100% {
+    background-position: 20% 20%;
+    opacity: 0.6;
+  }
+}
+
+.animated-bg-glow {
+  background-image: radial-gradient(circle at 40% 30%, rgba(34, 211, 238, 0.12) 0%, transparent 60%),
+                    radial-gradient(circle at 70% 70%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
+  background-size: 160% 160%;
+  animation: breathingGlow 20s ease-in-out infinite alternate;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(105vh) scale(0.8);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.35;
+  }
+  80% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(-5vh) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background-color: #22d3ee;
+  pointer-events: none;
+  animation: floatUp linear infinite;
+}
+
+.neumorphic-node {
+  background: #141822;
+  box-shadow: 6px 6px 14px rgba(0, 0, 0, 0.5),
+              -3px -3px 8px rgba(255, 255, 255, 0.03),
+              inset 1px 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+@keyframes beamDash {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.beam-animated {
+  stroke-dasharray: 8 6;
+  animation: beamDash 1.5s linear infinite;
+}
+
+
