@@ -200,6 +200,16 @@ For HTTPS deployments, set `PUBLIC_ORIGIN` to the exact HTTPS URL and `AUTH_COOK
 
 Stop containers with `docker compose down`. Persistent data remains intact. Use `docker compose down -v` only when you intentionally want to permanently delete all Compose-managed data.
 
+### Live end-to-end verification
+
+With Ollama, the backend, and the frontend running, execute the production-path smoke test from `backend`:
+
+```bash
+python tests/live_e2e.py
+```
+
+The harness verifies cookie authentication, RBAC, upload/extraction, local embeddings search, cited streaming chat, durable history, inspection generation, manager approval, report download, and audit attribution through the frontend proxy. It creates uniquely named test records and removes only those records/files after a successful run. Pass `--keep-data` when the result must remain visible for a manual browser review, then clean it with `--cleanup-run <run_id>`.
+
 ---
 
 ### Step 3: Setup & Run Frontend

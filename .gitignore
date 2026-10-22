@@ -40,6 +40,7 @@ out/
 .nuxt/
 dist/
 .cache/
+.runtime/
 tsconfig.tsbuildinfo
 next-env.d.ts.bak
 
