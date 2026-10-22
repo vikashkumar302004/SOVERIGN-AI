@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import asyncio
 import hashlib
 import json
 import os
@@ -77,9 +78,12 @@ from sandbox import execute_code
 from report_generator import generate_inspection_report_docx, structured_content_to_file
 from network_monitor import network_monitor
 from whisper_stt import init_whisper, transcribe_audio_file
+from observability import configure_logging
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+logger = configure_logging(config.LOG_LEVEL)
 
 app = FastAPI(
     title="Sovereign AI Backend",
@@ -110,7 +114,7 @@ def startup_event():
         )
         if config.REQUIRE_DATABASE_MIGRATIONS:
             raise RuntimeError(message)
-        print(f"WARNING: {message}")
+        logger.warning("database_migration_required", extra={"detail": message})
     _backfill_inspection_deliverables()
     network_monitor.start()
 
@@ -191,9 +195,9 @@ async def audit_logger_middleware(request: Request, call_next):
         if not summary:
             summary = f"API Request: {method} {endpoint}"
 
+        audit_db = SessionLocal()
         try:
-            db = SessionLocal()
-            db.add(
+            audit_db.add(
                 AuditLog(
                     timestamp=datetime.now(),
                     endpoint=endpoint,
@@ -207,10 +211,25 @@ async def audit_logger_middleware(request: Request, call_next):
                     ip_address=request.client.host if request.client else "unknown",
                 )
             )
-            db.commit()
-            db.close()
-        except Exception as exc:
-            print(f"Failed to save audit log: {exc}")
+            audit_db.commit()
+        except Exception:
+            audit_db.rollback()
+            logger.exception("audit_log_write_failed", extra={"request_id": request_id})
+        finally:
+            audit_db.close()
+
+        logger.info(
+            "request_completed",
+            extra={
+                "request_id": request_id,
+                "method": method,
+                "path": endpoint,
+                "status_code": status_code,
+                "duration_ms": duration_ms,
+                "username": username,
+                "role": role,
+            },
+        )
 
     _apply_security_headers(response)
     response.headers["X-Request-ID"] = request_id
@@ -225,6 +244,46 @@ def _apply_security_headers(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     if config.ENVIRONMENT == "production" and config.AUTH_COOKIE_SECURE:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+
+def _sse_frame(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
+
+
+def _persist_streamed_response(
+    session_id: int,
+    prompt: str,
+    response_text: str,
+    model_used: str,
+    routed_to_reason: str,
+) -> Optional[int]:
+    if not response_text:
+        return None
+    save_db = SessionLocal()
+    try:
+        ai_msg_entry = ChatMessage(
+            session_id=session_id,
+            role="assistant",
+            content=response_text,
+            model_used=model_used,
+        )
+        save_db.add(ai_msg_entry)
+        save_db.add(
+            ChatLog(
+                prompt=prompt,
+                response=response_text,
+                model=model_used,
+                routed_to_reason=routed_to_reason,
+            )
+        )
+        save_db.commit()
+        save_db.refresh(ai_msg_entry)
+        return ai_msg_entry.id
+    except Exception:
+        save_db.rollback()
+        raise
+    finally:
+        save_db.close()
 
 
 OLLAMA_URL = config.OLLAMA_URL
@@ -441,6 +500,11 @@ async def health_check(db: Session = Depends(get_db)):
         missing_models=missing_models,
         details=details,
     )
+
+
+@app.get("/health/live")
+async def liveness_check():
+    return {"status": "alive", "service": "sovereign-ai", "version": app.version}
 
 
 # --- AUTH & ADMIN ENDPOINTS ---
@@ -1027,9 +1091,11 @@ async def chat(
                 for source in chat_sources
             ],
         }
-        yield f"data: {json.dumps(init_frame)}\n\n"
+        yield _sse_frame(init_frame)
 
         full_response_text = ""
+        client_disconnected = False
+        stream_failed = False
         payload = {
             "model": model_used,
             "messages": ollama_messages,
@@ -1046,7 +1112,8 @@ async def chat(
                     if resp.status_code == 200:
                         async for line in resp.aiter_lines():
                             if await http_req.is_disconnected():
-                                return
+                                client_disconnected = True
+                                break
                             if not line.strip():
                                 continue
                             try:
@@ -1060,9 +1127,9 @@ async def chat(
                                         "model_used": model_used,
                                         "session_id": session.id,
                                     }
-                                    yield f"data: {json.dumps(token_frame)}\n\n"
-                            except Exception:
-                                pass
+                                    yield _sse_frame(token_frame)
+                            except (json.JSONDecodeError, TypeError, AttributeError):
+                                continue
                     else:
                         # Fallback to /api/generate
                         gen_payload = {
@@ -1081,7 +1148,8 @@ async def chat(
                             if gen_resp.status_code == 200:
                                 async for line in gen_resp.aiter_lines():
                                     if await http_req.is_disconnected():
-                                        return
+                                        client_disconnected = True
+                                        break
                                     if not line.strip():
                                         continue
                                     try:
@@ -1095,40 +1163,48 @@ async def chat(
                                                 "model_used": model_used,
                                                 "session_id": session.id,
                                             }
-                                            yield f"data: {json.dumps(token_frame)}\n\n"
-                                    except Exception:
-                                        pass
+                                            yield _sse_frame(token_frame)
+                                    except (json.JSONDecodeError, TypeError, AttributeError):
+                                        continue
                             else:
-                                err_frame = {"type": "error", "error": f"Ollama returned HTTP {gen_resp.status_code}"}
-                                yield f"data: {json.dumps(err_frame)}\n\n"
+                                stream_failed = True
+                                err_frame = {
+                                    "type": "error",
+                                    "error": "The local model could not complete this request.",
+                                    "request_id": http_req.state.request_id,
+                                }
+                                yield _sse_frame(err_frame)
 
+        except asyncio.CancelledError:
+            client_disconnected = True
         except Exception as exc:
-            err_frame = {"type": "error", "error": f"Ollama connection stream error: {str(exc)}"}
-            yield f"data: {json.dumps(err_frame)}\n\n"
+            stream_failed = True
+            logger.warning(
+                "ollama_stream_failed",
+                extra={"request_id": http_req.state.request_id, "error_type": type(exc).__name__},
+            )
+            err_frame = {
+                "type": "error",
+                "error": "The local model stream was interrupted. Please retry.",
+                "request_id": http_req.state.request_id,
+            }
+            yield _sse_frame(err_frame)
 
-        # Save Assistant ChatMessage to DB once streaming finishes
+        # Persist completed or user-stopped partial output before the request scope closes.
         if full_response_text:
             try:
-                save_db = SessionLocal()
-                ai_msg_entry = ChatMessage(
-                    session_id=session.id,
-                    role="assistant",
-                    content=full_response_text,
-                    model_used=model_used,
+                ai_msg_id = _persist_streamed_response(
+                    session.id,
+                    prompt_text,
+                    full_response_text,
+                    model_used,
+                    routed_to_reason,
                 )
-                save_db.add(ai_msg_entry)
-                log_entry = ChatLog(
-                    prompt=prompt_text,
-                    response=full_response_text,
-                    model=model_used,
-                    routed_to_reason=routed_to_reason,
-                )
-                save_db.add(log_entry)
-                save_db.commit()
-                ai_msg_id = ai_msg_entry.id
-                save_db.close()
             except Exception as e:
-                print(f"Failed saving streamed assistant message: {e}")
+                logger.exception(
+                    "stream_persistence_failed",
+                    extra={"request_id": http_req.state.request_id},
+                )
                 ai_msg_id = None
 
             done_frame = {
@@ -1137,8 +1213,12 @@ async def chat(
                 "ai_message_id": ai_msg_id,
                 "model_used": model_used,
                 "session_id": session.id,
+                "finish_reason": (
+                    "stopped" if client_disconnected else "error" if stream_failed else "complete"
+                ),
             }
-            yield f"data: {json.dumps(done_frame)}\n\n"
+            if not client_disconnected:
+                yield _sse_frame(done_frame)
 
     return StreamingResponse(
         event_generator(),

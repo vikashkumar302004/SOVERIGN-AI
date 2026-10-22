@@ -46,6 +46,7 @@ interface Message {
   timestamp: string;
   isStreaming?: boolean;
   sources?: CitationSource[];
+  finishReason?: "complete" | "stopped" | "error";
 }
 
 interface CitationSource {
@@ -118,7 +119,9 @@ export default function ChatPage() {
     setLoading(false);
     setMessages((prev) =>
       prev.map((message) =>
-        message.isStreaming ? { ...message, isStreaming: false } : message
+        message.isStreaming
+          ? { ...message, isStreaming: false, finishReason: "stopped" }
+          : message
       )
     );
   };
@@ -526,15 +529,19 @@ export default function ChatPage() {
                             content: accumulatedText,
                             modelUsed: data.model_used || m.modelUsed,
                             isStreaming: false,
+                            finishReason: data.finish_reason || "complete",
                           }
                         : m
                     )
                   );
                 } else if (data.type === "error") {
-                  setError(data.error || "Generation failed");
+                  const reference = data.request_id ? ` Reference: ${data.request_id}` : "";
+                  setError(`${data.error || "Generation failed"}${reference}`);
                   setMessages((prev) =>
                     prev.map((m) =>
-                      m.id === aiMsgId ? { ...m, isStreaming: false } : m
+                      m.id === aiMsgId
+                        ? { ...m, isStreaming: false, finishReason: "error" }
+                        : m
                     )
                   );
                 }
@@ -804,7 +811,7 @@ export default function ChatPage() {
                         )}
 
                         {/* Model Badge with Colored Dot & Monospace Timestamp Footer */}
-                        {(msg.modelUsed || msg.timestamp) && (
+                        {(msg.modelUsed || msg.timestamp || msg.finishReason === "stopped") && (
                           <div className="flex items-center gap-3 mt-4 pt-2 border-t border-[#232838]/50">
                             {msg.modelUsed && (
                               <span className="px-2.5 py-0.5 rounded-full bg-[#161B26] border border-white/[0.08] text-[#9CA3AF] font-mono text-[11px] font-medium flex items-center gap-1.5 select-none">
@@ -815,6 +822,11 @@ export default function ChatPage() {
                             {msg.timestamp && (
                               <span className="text-[#6B7280] text-[10px] font-mono tracking-wider select-none">
                                 {msg.timestamp}
+                              </span>
+                            )}
+                            {msg.finishReason === "stopped" && (
+                              <span className="text-amber-400/80 text-[10px] font-mono uppercase tracking-wider">
+                                Stopped · partial response saved
                               </span>
                             )}
                           </div>

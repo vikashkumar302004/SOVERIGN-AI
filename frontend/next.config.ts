@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/api/:path*", destination: `${backendOrigin}/api/:path*` },
       { source: "/health", destination: `${backendOrigin}/health` },
+      { source: "/health/:path*", destination: `${backendOrigin}/health/:path*` },
     ];
   },
 };

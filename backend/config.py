@@ -27,6 +27,7 @@ os.makedirs(DELIVERABLES_DIR, exist_ok=True)
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
 if ENVIRONMENT == "production" and SECRET_KEY == "dev-only-change-me":
     raise RuntimeError("SECRET_KEY must be set to a strong value in production")

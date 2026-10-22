@@ -3,6 +3,7 @@ import json
 import sys
 import unittest
 import uuid
+import logging
 from unittest.mock import patch
 
 from fastapi import HTTPException, Response
@@ -21,6 +22,7 @@ from auth import create_access_token, get_current_user  # noqa: E402
 from database import Base  # noqa: E402
 from models import (  # noqa: E402
     ChatSession,
+    ChatMessage,
     Document,
     DocumentChunk,
     GeneratedDeliverable,
@@ -29,6 +31,7 @@ from models import (  # noqa: E402
     UserRole,
 )
 from schemas import SearchRequest, UserRegisterRequest  # noqa: E402
+from observability import JsonFormatter  # noqa: E402
 
 
 class AuthAndIsolationTests(unittest.TestCase):
@@ -201,6 +204,49 @@ class AuthAndIsolationTests(unittest.TestCase):
             )
         with self.assertRaises(ValidationError):
             SearchRequest(query="valid", top_k=1000)
+
+    def test_sse_frames_preserve_unicode_and_event_boundaries(self):
+        frame = main._sse_frame({"type": "token", "token": "नमस्ते\nworld"})
+        self.assertTrue(frame.startswith("data: "))
+        self.assertTrue(frame.endswith("\n\n"))
+        payload = json.loads(frame.removeprefix("data: ").strip())
+        self.assertEqual(payload["token"], "नमस्ते\nworld")
+
+    def test_partial_stream_response_is_persisted(self):
+        owner = self.create_user("stream_owner")
+        session = ChatSession(title="Interrupted", user_id=owner.id)
+        self.db.add(session)
+        self.db.commit()
+        self.db.refresh(session)
+
+        with patch.object(main, "SessionLocal", self.Session):
+            message_id = main._persist_streamed_response(
+                session.id,
+                "Explain the alarm",
+                "Partial but useful answer",
+                "llama3.2:3b",
+                "general reasoning",
+            )
+
+        persisted = self.db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+        self.assertIsNotNone(persisted)
+        self.assertEqual(persisted.content, "Partial but useful answer")
+
+    def test_structured_logs_include_request_context(self):
+        record = logging.LogRecord(
+            name="sovereign",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="request_completed",
+            args=(),
+            exc_info=None,
+        )
+        record.request_id = "req-123"
+        record.status_code = 200
+        payload = json.loads(JsonFormatter().format(record))
+        self.assertEqual(payload["request_id"], "req-123")
+        self.assertEqual(payload["status_code"], 200)
 
 
 if __name__ == "__main__":
