@@ -286,3 +286,11 @@ sequenceDiagram
 ## 🏆 Summary
 
 Sovereign AI's architecture ensures complete data autonomy, zero cloud leakages, and instant local execution for high-security defense, industrial, healthcare, and enterprise environments.
+
+## Database release lifecycle
+
+Database changes are versioned in `backend/migrations` with Alembic. Every release must run
+`alembic upgrade head` before the API process starts. Production startup compares the database's
+recorded revision with the migration head and fails fast on drift, preventing mixed application and
+schema versions. CI verifies upgrade, downgrade, re-upgrade, and model-to-schema drift on SQLite;
+production deployments can use PostgreSQL through `DATABASE_URL`.

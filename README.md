@@ -153,12 +153,25 @@ Ensure Ollama service is running on `http://localhost:11434`.
    pip install -r requirements.txt
    ```
 
-4. Start the FastAPI server:
+4. Create or upgrade the database schema:
+   ```bash
+   alembic upgrade head
+   ```
+
+5. Start the FastAPI server:
    ```bash
    python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
    The backend will start at `http://127.0.0.1:8000`. Swagger API documentation will be available at `http://127.0.0.1:8000/docs`.
+
+### Production database safety
+
+- Copy `backend/.env.example` into your deployment secret/config system and replace every placeholder.
+- Production supports PostgreSQL through `DATABASE_URL`; SQLite remains convenient for single-machine development.
+- Run `alembic upgrade head` as a release step before starting the API. With `ENVIRONMENT=production`, the API refuses to start when the database revision is stale.
+- For a database created by an older Sovereign AI build, take a backup first. If its tables already match the current schema, run `alembic stamp 68928c167acc` once, followed by `alembic upgrade head`.
+- Never run `alembic stamp` on a fresh or partially upgraded database; stamping records a revision without changing tables.
 
 ---
 

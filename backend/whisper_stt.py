@@ -1,24 +1,35 @@
 import os
-from typing import Optional
-from faster_whisper import WhisperModel  # type: ignore
+from typing import Any, Optional
 
-whisper_model: Optional[WhisperModel] = None
+whisper_model: Optional[Any] = None
+
+
+def _whisper_model_class():
+    try:
+        from faster_whisper import WhisperModel  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError(
+            "Speech-to-text is unavailable because faster-whisper is not installed. "
+            "Install backend requirements and restart the API."
+        ) from exc
+    return WhisperModel
 
 def init_whisper():
     global whisper_model
     if whisper_model is None:
+        whisper_model_class = _whisper_model_class()
         print("[STT] Initializing faster-whisper 'base.en' model...")
         try:
-            whisper_model = WhisperModel("base.en", device="cpu", compute_type="int8")
+            whisper_model = whisper_model_class("base.en", device="cpu", compute_type="int8")
             print("[STT] Loaded with compute_type='int8'.")
         except Exception as e:
             print(f"[STT] Int8 load failed ({e}), falling back to float32...")
             try:
-                whisper_model = WhisperModel("base.en", device="cpu", compute_type="float32")
+                whisper_model = whisper_model_class("base.en", device="cpu", compute_type="float32")
                 print("[STT] Loaded with compute_type='float32'.")
             except Exception as e2:
                 print(f"[STT] Float32 load failed ({e2}), falling back to default...")
-                whisper_model = WhisperModel("base.en", device="cpu")
+                whisper_model = whisper_model_class("base.en", device="cpu")
         print("[STT] faster-whisper 'base.en' model ready.")
 
 def transcribe_audio_file(file_path: str) -> str:

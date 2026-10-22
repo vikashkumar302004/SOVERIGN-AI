@@ -9,11 +9,10 @@ from typing import BinaryIO, List, Optional
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import inspect, text
 import httpx
 
 import config
-from database import engine, Base, get_db, SessionLocal
+from database import database_revision_status, get_db, SessionLocal
 from models import (
     User,
     UserRole,
@@ -80,28 +79,6 @@ from whisper_stt import init_whisper, transcribe_audio_file
 
 from fastapi.middleware.cors import CORSMiddleware
 
-Base.metadata.create_all(bind=engine)
-
-# Transitional compatibility for existing installations. Alembic migrations replace
-# this compatibility block in the next database milestone.
-try:
-    existing_cols = {column["name"] for column in inspect(engine).get_columns("audit_logs")}
-    compatibility_columns = {
-        "username": "VARCHAR DEFAULT 'anonymous'",
-        "role": "VARCHAR DEFAULT 'ANONYMOUS'",
-        "request_id": "VARCHAR DEFAULT ''",
-        "ip_address": "VARCHAR DEFAULT 'unknown'",
-    }
-    with engine.begin() as conn:
-        for column_name, column_type in compatibility_columns.items():
-            if column_name not in existing_cols:
-                conn.execute(
-                    text(f"ALTER TABLE audit_logs ADD COLUMN {column_name} {column_type}")
-                )
-except Exception as _mig_err:
-    print(f"Audit log column migration check: {_mig_err}")
-
-
 app = FastAPI(title="Sovereign AI Backend", version="5.0.0")
 
 app.add_middleware(
@@ -115,6 +92,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
+    current_revision, head_revision = database_revision_status()
+    if current_revision != head_revision:
+        message = (
+            "Database migration required: run `alembic upgrade head` "
+            f"(current={current_revision or 'unversioned'}, expected={head_revision})."
+        )
+        if config.REQUIRE_DATABASE_MIGRATIONS:
+            raise RuntimeError(message)
+        print(f"WARNING: {message}")
     _backfill_inspection_deliverables()
     network_monitor.start()
 

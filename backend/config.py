@@ -56,6 +56,10 @@ ENABLE_CODE_SANDBOX = os.getenv(
     "ENABLE_CODE_SANDBOX",
     "true" if ENVIRONMENT == "development" else "false",
 ).lower() in {"1", "true", "yes"}
+REQUIRE_DATABASE_MIGRATIONS = os.getenv(
+    "REQUIRE_DATABASE_MIGRATIONS",
+    "true" if ENVIRONMENT == "production" else "false",
+).lower() in {"1", "true", "yes"}
 ALLOWED_UPLOAD_EXTENSIONS = {
     ".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg",
     ".bmp", ".tiff", ".txt", ".wav", ".mp3", ".m4a", ".ogg", ".webm",
