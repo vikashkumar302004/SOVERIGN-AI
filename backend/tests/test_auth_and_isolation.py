@@ -16,7 +16,7 @@ import config  # noqa: E402
 import main  # noqa: E402
 from auth import create_access_token, get_current_user  # noqa: E402
 from database import Base  # noqa: E402
-from models import ChatSession, User, UserRole  # noqa: E402
+from models import ChatSession, GeneratedDeliverable, User, UserRole  # noqa: E402
 
 
 class AuthAndIsolationTests(unittest.TestCase):
@@ -88,6 +88,30 @@ class AuthAndIsolationTests(unittest.TestCase):
 
         self.assertIsNotNone(main._owned_session_query(self.db, session.id, owner.id).first())
         self.assertIsNone(main._owned_session_query(self.db, session.id, intruder.id).first())
+
+    def test_deliverable_query_enforces_owner_and_manager_access(self):
+        owner = self.create_user("deliverable_owner")
+        intruder = self.create_user("deliverable_intruder")
+        manager = self.create_user("deliverable_manager")
+        manager.role = UserRole.MANAGER
+        deliverable = GeneratedDeliverable(
+            filename="private-report.pdf",
+            file_path=os.path.join(BACKEND_DIR, "deliverables", "private-report.pdf"),
+            output_format="pdf",
+            owner_id=owner.id,
+        )
+        self.db.add(deliverable)
+        self.db.commit()
+
+        self.assertIsNotNone(
+            main._accessible_deliverable_query(self.db, deliverable.filename, owner).first()
+        )
+        self.assertIsNone(
+            main._accessible_deliverable_query(self.db, deliverable.filename, intruder).first()
+        )
+        self.assertIsNotNone(
+            main._accessible_deliverable_query(self.db, deliverable.filename, manager).first()
+        )
 
 
 if __name__ == "__main__":

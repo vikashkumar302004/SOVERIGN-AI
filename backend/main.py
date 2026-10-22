@@ -25,6 +25,7 @@ from models import (
     ChatMessage,
     ApprovalStatus,
     InspectionWorkflow,
+    GeneratedDeliverable,
 )
 from schemas import (
     UserRegisterRequest,
@@ -107,7 +108,42 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
+    _backfill_inspection_deliverables()
     network_monitor.start()
+
+
+def _backfill_inspection_deliverables() -> None:
+    """Register legacy inspection reports so authorization can be enforced."""
+    db = SessionLocal()
+    try:
+        workflows = db.query(InspectionWorkflow).filter(
+            InspectionWorkflow.submitted_by_id.is_not(None)
+        ).all()
+        existing = {
+            row[0]
+            for row in db.query(GeneratedDeliverable.filename).all()
+        }
+        for workflow in workflows:
+            filename = os.path.basename(workflow.deliverable_file_path or "")
+            if not filename or filename in existing:
+                continue
+            db.add(
+                GeneratedDeliverable(
+                    filename=filename,
+                    file_path=workflow.deliverable_file_path,
+                    output_format=os.path.splitext(filename)[1].lstrip(".") or "docx",
+                    owner_id=workflow.submitted_by_id,
+                    source_document_id=workflow.document_id,
+                    workflow_id=workflow.workflow_id,
+                )
+            )
+            existing.add(filename)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 @app.middleware("http")
@@ -183,6 +219,16 @@ def _owned_session_query(db: Session, session_id: int, user_id: int):
         ChatSession.id == session_id,
         ChatSession.user_id == user_id,
     )
+
+
+def _accessible_deliverable_query(db: Session, filename: str, user: User):
+    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    query = db.query(GeneratedDeliverable).filter(
+        GeneratedDeliverable.filename == filename
+    )
+    if role not in {"MANAGER", "ADMIN"}:
+        query = query.filter(GeneratedDeliverable.owner_id == user.id)
+    return query
 
 
 def _can_access_document(document: Document, user: User) -> bool:
@@ -1273,6 +1319,16 @@ async def inspection_approval_workflow(
         approval_status=ApprovalStatus.PENDING_REVIEW,
     )
     db.add(inspection_wf)
+    db.add(
+        GeneratedDeliverable(
+            filename=download_filename,
+            file_path=deliverable_file_path,
+            output_format="docx",
+            owner_id=current_user.id,
+            source_document_id=doc_record.id,
+            workflow_id=workflow_id,
+        )
+    )
     db.commit()
     db.refresh(inspection_wf)
 
@@ -1425,6 +1481,16 @@ async def review_inspection(
     )
 
     wf_record.deliverable_file_path = report_meta["deliverable_file_path"]
+    db.add(
+        GeneratedDeliverable(
+            filename=report_meta["filename"],
+            file_path=report_meta["deliverable_file_path"],
+            output_format="docx",
+            owner_id=wf_record.submitted_by_id or current_user.id,
+            source_document_id=wf_record.document_id,
+            workflow_id=wf_record.workflow_id,
+        )
+    )
 
     db.commit()
     db.refresh(wf_record)
@@ -1578,6 +1644,17 @@ async def generate_deliverable(
         filename_prefix=f"deliverable_{output_fmt}",
     )
 
+    db.add(
+        GeneratedDeliverable(
+            filename=gen_result["filename"],
+            file_path=gen_result["deliverable_file_path"],
+            output_format=output_fmt,
+            owner_id=current_user.id,
+            source_document_id=request.document_id,
+        )
+    )
+    db.commit()
+
     http_req.state.audit_summary = (
         f"Generated {output_fmt.upper()} deliverable '{gen_result['filename']}' "
         f"via {model_used} for prompt '{request.prompt[:30]}...'"
@@ -1597,12 +1674,21 @@ async def generate_deliverable(
 async def get_deliverable(
     filename: str,
     http_req: Request,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    file_path = os.path.join(config.DELIVERABLES_DIR, safe_filename)
+    deliverable = _accessible_deliverable_query(db, safe_filename, current_user).first()
+    if not deliverable:
+        raise HTTPException(status_code=404, detail="Deliverable file not found")
+
+    file_path = deliverable.file_path
+    expected_root = os.path.realpath(config.DELIVERABLES_DIR)
+    resolved_path = os.path.realpath(file_path)
+    if os.path.commonpath([expected_root, resolved_path]) != expected_root:
+        raise HTTPException(status_code=400, detail="Invalid deliverable path")
     if not os.path.exists(file_path):
         raise HTTPException(
             status_code=404, detail=f"Deliverable file '{filename}' not found."

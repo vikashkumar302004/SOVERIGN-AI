@@ -168,4 +168,20 @@ class InspectionWorkflow(Base):
     reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
 
 
+class GeneratedDeliverable(Base):
+    __tablename__ = "generated_deliverables"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String, unique=True, index=True, nullable=False)
+    file_path = Column(String, nullable=False)
+    output_format = Column(String, nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    source_document_id = Column(Integer, ForeignKey("documents.id"), nullable=True)
+    workflow_id = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    owner = relationship("User", foreign_keys=[owner_id])
+    source_document = relationship("Document", foreign_keys=[source_document_id])
+
+
 
