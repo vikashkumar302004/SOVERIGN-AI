@@ -33,6 +33,11 @@ if ENVIRONMENT == "production" and SECRET_KEY == "dev-only-change-me":
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 8
+AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "sovereign_session")
+AUTH_COOKIE_SECURE = os.getenv(
+    "AUTH_COOKIE_SECURE",
+    "true" if ENVIRONMENT == "production" else "false",
+).lower() in {"1", "true", "yes"}
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 CORS_ORIGINS = _csv_env(
     "CORS_ORIGINS",

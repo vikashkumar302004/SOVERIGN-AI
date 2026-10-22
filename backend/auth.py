@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import bcrypt  # type: ignore
 from jose import JWTError, jwt  # type: ignore
@@ -10,7 +10,7 @@ import config
 from database import get_db
 from models import User, UserRole
 
-security_scheme = HTTPBearer(auto_error=True)
+security_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -42,7 +42,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     credentials_exception = HTTPException(
@@ -50,7 +51,13 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    token = credentials.credentials
+    token = (
+        credentials.credentials
+        if credentials is not None
+        else request.cookies.get(config.AUTH_COOKIE_NAME)
+    )
+    if not token:
+        raise credentials_exception
     try:
         payload = jwt.decode(
             token, config.SECRET_KEY, algorithms=[config.ALGORITHM]

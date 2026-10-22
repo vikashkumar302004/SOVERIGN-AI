@@ -46,7 +46,7 @@ export default function RegisterPage() {
       if (!res.ok) {
         setError(data.detail || "Registration failed.");
       } else {
-        login(data.access_token, data.user);
+        login("", data.user);
         router.push("/chat");
       }
     } catch (err: any) {

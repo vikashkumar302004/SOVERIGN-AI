@@ -5,7 +5,7 @@ import shutil
 import time
 import uuid
 from typing import BinaryIO, List, Optional
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -124,8 +124,10 @@ async def audit_logger_middleware(request: Request, call_next):
     role = "ANONYMOUS"
 
     auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    token = request.cookies.get(config.AUTH_COOKIE_NAME)
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
+    if token:
         try:
             from jose import jwt
             payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
@@ -282,8 +284,24 @@ async def health_check(db: Session = Depends(get_db)):
 
 # --- AUTH & ADMIN ENDPOINTS ---
 
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=config.AUTH_COOKIE_NAME,
+        value=token,
+        max_age=config.ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,
+        httponly=True,
+        secure=config.AUTH_COOKIE_SECURE,
+        samesite="strict",
+        path="/",
+    )
+
 @app.post("/api/v1/auth/register", response_model=TokenResponse)
-async def register_user(request: UserRegisterRequest, db: Session = Depends(get_db)):
+async def register_user(
+    request: UserRegisterRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     if not request.username or not request.username.strip():
         raise HTTPException(status_code=400, detail="Username is required")
     if not request.email or not request.email.strip():
@@ -326,6 +344,7 @@ async def register_user(request: UserRegisterRequest, db: Session = Depends(get_
     token = create_access_token(
         {"sub": user.username, "user_id": user.id, "role": role_str}
     )
+    _set_auth_cookie(response, token)
 
     user_resp = UserResponse(
         id=user.id,
@@ -334,11 +353,15 @@ async def register_user(request: UserRegisterRequest, db: Session = Depends(get_
         role=role_str,
         created_at=user.created_at.isoformat() if user.created_at else "",
     )
-    return TokenResponse(access_token=token, token_type="bearer", user=user_resp)
+    return TokenResponse(user=user_resp)
 
 
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
-async def login_user(request: UserLoginRequest, db: Session = Depends(get_db)):
+async def login_user(
+    request: UserLoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     if not request.username or not request.password:
         raise HTTPException(
             status_code=400, detail="Username and password are required"
@@ -362,6 +385,7 @@ async def login_user(request: UserLoginRequest, db: Session = Depends(get_db)):
     token = create_access_token(
         {"sub": user.username, "user_id": user.id, "role": role_str}
     )
+    _set_auth_cookie(response, token)
 
     user_resp = UserResponse(
         id=user.id,
@@ -370,7 +394,18 @@ async def login_user(request: UserLoginRequest, db: Session = Depends(get_db)):
         role=role_str,
         created_at=user.created_at.isoformat() if user.created_at else "",
     )
-    return TokenResponse(access_token=token, token_type="bearer", user=user_resp)
+    return TokenResponse(user=user_resp)
+
+
+@app.post("/api/v1/auth/logout", status_code=204)
+async def logout_user(response: Response):
+    response.delete_cookie(
+        key=config.AUTH_COOKIE_NAME,
+        path="/",
+        secure=config.AUTH_COOKIE_SECURE,
+        httponly=True,
+        samesite="strict",
+    )
 
 
 @app.get("/api/v1/auth/me", response_model=UserResponse)

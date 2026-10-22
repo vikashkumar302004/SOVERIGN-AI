@@ -14,26 +14,24 @@ def run_verification():
     # Employee User
     emp_user = f"emp_{uuid.uuid4().hex[:6]}"
     emp_email = f"{emp_user}@example.com"
-    emp_pass = "emp12345"
-    reg_resp = requests.post(
+    emp_pass = "employee12345"
+    employee_session = requests.Session()
+    reg_resp = employee_session.post(
         f"{BASE_URL}/api/v1/auth/register",
         json={"username": emp_user, "email": emp_email, "password": emp_pass, "role": "EMPLOYEE"},
     )
     assert reg_resp.status_code == 200, f"Employee registration failed: {reg_resp.text}"
 
-    emp_login = requests.post(f"{BASE_URL}/api/v1/auth/login", json={"username": emp_user, "password": emp_pass})
+    emp_login = employee_session.post(f"{BASE_URL}/api/v1/auth/login", json={"username": emp_user, "password": emp_pass})
     assert emp_login.status_code == 200, f"Employee login failed: {emp_login.text}"
-    emp_token = emp_login.json()["access_token"]
-    emp_headers = {"Authorization": f"Bearer {emp_token}"}
     print(f"Logged in as EMPLOYEE user: '{emp_user}'")
 
     # Admin/Manager User
     admin_user = "admin_user"
     admin_pass = "admin123"
-    admin_login = requests.post(f"{BASE_URL}/api/v1/auth/login", json={"username": admin_user, "password": admin_pass})
+    admin_session = requests.Session()
+    admin_login = admin_session.post(f"{BASE_URL}/api/v1/auth/login", json={"username": admin_user, "password": admin_pass})
     assert admin_login.status_code == 200, f"Admin login failed: {admin_login.text}"
-    admin_token = admin_login.json()["access_token"]
-    admin_headers = {"Authorization": f"Bearer {admin_token}"}
     print(f"Logged in as ADMIN/MANAGER user: '{admin_user}'")
 
     # Upload test document as EMPLOYEE
@@ -43,10 +41,9 @@ def run_verification():
             f.write("Turbine vibration 7.8 mm/s exceeding limit 4.5 mm/s. Bearing temperature 88.5C.")
 
     with open(test_file_path, "rb") as f:
-        upload_resp = requests.post(
+        upload_resp = employee_session.post(
             f"{BASE_URL}/api/v1/documents/upload",
             files={"file": (test_file_path, f, "text/plain")},
-            headers=emp_headers,
         )
     assert upload_resp.status_code == 200, f"Document upload failed: {upload_resp.text}"
     uploaded_doc = upload_resp.json()
@@ -56,10 +53,9 @@ def run_verification():
 
     # STEP 1: Run Inspection Workflow as EMPLOYEE
     print("\n--- STEP 1: Run Inspection Workflow as EMPLOYEE ---")
-    wf_resp = requests.post(
+    wf_resp = employee_session.post(
         f"{BASE_URL}/api/v1/workflows/inspection-approval",
         json={"document_id": doc_id},
-        headers=emp_headers,
     )
     assert wf_resp.status_code == 200, f"Workflow execution failed: {wf_resp.text}"
     wf_data = wf_resp.json()
@@ -73,7 +69,7 @@ def run_verification():
 
     # STEP 2: Manager/Admin calls GET /api/v1/inspections/pending-review
     print("\n--- STEP 2: Log in as MANAGER/ADMIN and fetch /api/v1/inspections/pending-review ---")
-    pending_resp = requests.get(f"{BASE_URL}/api/v1/inspections/pending-review", headers=admin_headers)
+    pending_resp = admin_session.get(f"{BASE_URL}/api/v1/inspections/pending-review")
     assert pending_resp.status_code == 200, f"GET pending-review failed: {pending_resp.text}"
     pending_data = pending_resp.json()
     pending_items = pending_data.get("inspections", [])
@@ -86,10 +82,9 @@ def run_verification():
 
     # STEP 3: EMPLOYEE attempts to directly review/PATCH endpoint -> Expect 403 Forbidden
     print("\n--- STEP 3: Test Security Role Enforcement (EMPLOYEE PATCH request) ---")
-    emp_patch_resp = requests.patch(
+    emp_patch_resp = employee_session.patch(
         f"{BASE_URL}/api/v1/inspections/{wf_id}/review",
         json={"decision": "APPROVED", "comment": "Unauthorized approval attempt"},
-        headers=emp_headers,
     )
     print(f"Employee PATCH status code: {emp_patch_resp.status_code}")
     print(f"Employee PATCH response: {emp_patch_resp.text}")
@@ -99,10 +94,9 @@ def run_verification():
     # STEP 4: MANAGER/ADMIN approves via PATCH endpoint
     print("\n--- STEP 4: Approve inspection via PATCH /api/v1/inspections/{workflow_id}/review as MANAGER/ADMIN ---")
     review_comment = "Verified vibration and thermal logs against emergency threshold specs. Approved with shaft realignment recommendation."
-    patch_resp = requests.patch(
+    patch_resp = admin_session.patch(
         f"{BASE_URL}/api/v1/inspections/{wf_id}/review",
         json={"decision": "APPROVED", "comment": review_comment},
-        headers=admin_headers,
     )
     assert patch_resp.status_code == 200, f"PATCH review failed: {patch_resp.text}"
     reviewed_item = patch_resp.json()
@@ -120,7 +114,7 @@ def run_verification():
 
     # STEP 5: Verify item is moved out of pending list into reviewed history
     print("\n--- STEP 5: Verify item moved to Reviewed History ---")
-    history_resp = requests.get(f"{BASE_URL}/api/v1/inspections/reviewed-history", headers=admin_headers)
+    history_resp = admin_session.get(f"{BASE_URL}/api/v1/inspections/reviewed-history")
     assert history_resp.status_code == 200
     history_items = history_resp.json().get("inspections", [])
     history_found = next((item for item in history_items if item["workflow_id"] == wf_id), None)

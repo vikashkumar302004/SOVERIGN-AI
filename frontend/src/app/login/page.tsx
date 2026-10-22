@@ -88,7 +88,7 @@ export default function LoginPage() {
       if (!res.ok) {
         setError(data.detail || "Authentication failed. Check credentials.");
       } else {
-        login(data.access_token, data.user);
+        login("", data.user);
         router.push("/chat");
       }
     } catch (err: any) {

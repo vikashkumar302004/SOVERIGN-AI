@@ -30,20 +30,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem("sovereign_token");
-      const storedUser = localStorage.getItem("sovereign_user");
-
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (err) {
-      localStorage.removeItem("sovereign_token");
-      localStorage.removeItem("sovereign_user");
-    } finally {
-      setLoading(false);
-    }
+    let active = true;
+    fetch("/api/v1/auth/me", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const authenticatedUser = (await response.json()) as User;
+        if (active) {
+          setUser(authenticatedUser);
+          setToken("http-only-cookie");
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Protect routes when not logged in, and redirect logged-in users away from auth pages
@@ -60,31 +63,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, loading, pathname, router]);
 
-  const login = (newToken: string, newUser: User) => {
-    setToken(newToken);
+  const login = (_newToken: string, newUser: User) => {
+    setToken("http-only-cookie");
     setUser(newUser);
-    localStorage.setItem("sovereign_token", newToken);
-    localStorage.setItem("sovereign_user", JSON.stringify(newUser));
   };
 
   const logout = () => {
+    void fetch("/api/v1/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
     setToken(null);
     setUser(null);
-    localStorage.removeItem("sovereign_token");
-    localStorage.removeItem("sovereign_user");
     router.push("/login");
   };
 
   const authFetch = async (url: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers || {});
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-
     try {
       const res = await fetch(url, {
         ...options,
         headers,
+        credentials: "same-origin",
       });
 
       if (res.status === 401) {
