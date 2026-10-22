@@ -137,7 +137,7 @@ export default function ManagerReviewsPage() {
 
   if (error && error.includes("Access Restricted")) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="workspace-page max-w-4xl space-y-6">
         <div className="p-8 bg-surface border border-[#EF4444]/40 rounded-xl text-center space-y-3">
           <AlertCircle className="w-10 h-10 text-[#EF4444] mx-auto" />
           <h2 className="text-lg font-bold text-primary">403 Forbidden</h2>
@@ -148,7 +148,7 @@ export default function ManagerReviewsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 select-none">
+    <div className="workspace-page space-y-8 select-none">
       {/* Header */}
       <div className="pb-4 border-b border-token flex items-center justify-between">
         <div>

@@ -106,7 +106,7 @@ export default function InspectionPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 select-none">
+    <div className="workspace-page max-w-5xl space-y-8 select-none">
       {/* Header */}
       <div className="pb-4 border-b border-token flex items-center justify-between">
         <div>

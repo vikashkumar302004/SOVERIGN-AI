@@ -81,9 +81,9 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 select-none">
+    <div className="workspace-page space-y-8 select-none">
       {/* Page Header */}
-      <div className="pb-4 border-b border-token flex items-center justify-between">
+      <div className="pb-5 border-b border-token flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-primary flex items-center gap-2.5">
             <FileText className="w-5 h-5 text-accent" />
@@ -95,7 +95,7 @@ export default function DocumentsPage() {
         </div>
         <button
           onClick={fetchDocuments}
-          className="px-3.5 py-1.5 rounded-lg bg-surface hover:bg-surface-hover border border-token text-xs font-mono text-primary flex items-center gap-2 transition-all shadow-sm"
+          className="self-start px-3.5 py-2 rounded-lg bg-surface hover:bg-surface-hover border border-token text-[11px] font-mono text-primary flex items-center gap-2 transition-all shadow-sm sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loadingDocs ? "animate-spin" : ""}`} />
           <span>Refresh Registry</span>

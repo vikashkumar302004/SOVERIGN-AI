@@ -114,7 +114,7 @@ export default function AuditPage() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="workspace-page space-y-8">
       {/* Header */}
       <div className="pb-4 border-b border-token flex items-center justify-between">
         <div>

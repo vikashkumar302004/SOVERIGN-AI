@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ShieldCheck, WifiOff, ChevronDown, LogOut, User as UserIcon, Settings, ShieldAlert, Sun, Moon } from "lucide-react";
+import { ChevronDown, LogOut, Sun, Moon, Menu, Command } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -20,13 +21,14 @@ interface NetworkData {
   current_status: string;
 }
 
-export default function TopBar() {
+export default function TopBar({ onOpenNavigation }: { onOpenNavigation?: () => void }) {
   const { user, logout, authFetch } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [health, setHealth] = useState<HealthData | null>(null);
   const [network, setNetwork] = useState<NetworkData | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   const fetchHealthAndNetwork = async () => {
     try {
@@ -87,34 +89,44 @@ export default function TopBar() {
   const isNetworkClean = network ? network.total_outbound_attempts === 0 : true;
 
   const userInitial = user?.username ? user.username.charAt(0).toUpperCase() : "U";
+  const pageNames: Record<string, string> = {
+    "/chat": "Intelligence",
+    "/documents": "Documents",
+    "/knowledge": "Knowledge",
+    "/sandbox": "Sandbox",
+    "/inspection": "Inspections",
+    "/generate": "Deliverables",
+    "/reviews": "Approvals",
+    "/sovereignty": "Sovereignty",
+    "/audit": "Audit trail",
+    "/admin": "Administration",
+  };
 
   return (
-    <header className="h-12 bg-base/80 backdrop-blur-md border-b border-token/40 px-6 flex items-center justify-between sticky top-0 z-30 shrink-0 select-none transition-colors duration-300">
+    <header className="h-[60px] bg-[#090c11]/82 backdrop-blur-xl border-b border-white/[0.065] px-3 sm:px-5 flex items-center justify-between sticky top-0 z-30 shrink-0 select-none">
       {/* Title & Status */}
-      <div className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280]">
-        <span className="font-medium text-[#9CA3AF] tracking-wide uppercase font-sans text-xs">
-          Sovereign AI
-        </span>
-        <span className="text-[#374151]">/</span>
-        <div className="flex items-center space-x-1.5">
-          <span>PORT:</span>
-          <span className="text-[#9CA3AF]">8000</span>
-        </div>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <button onClick={onOpenNavigation} aria-label="Open navigation" className="p-2 -ml-1 rounded-lg text-[#7f8999] hover:text-white hover:bg-white/[0.05] lg:hidden">
+          <Menu className="h-4 w-4" />
+        </button>
+        <Command className="hidden sm:block h-3.5 w-3.5 text-[#667187]" />
+        <span className="text-[12px] font-medium text-[#c7cdd7] truncate">{pageNames[pathname] || "Workspace"}</span>
+        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full border border-white/[0.07] bg-white/[0.025] text-[9px] font-mono uppercase tracking-wider text-[#677284]">Local</span>
       </div>
 
       {/* Compact Combined Status Cluster, Theme Switcher & Profile Menu */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Near-invisible status dots */}
         <Link
           href="/sovereignty"
-          className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
+          className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/[0.06] bg-white/[0.025] text-[9px] font-mono uppercase tracking-wide text-[#747e8f] hover:text-[#aab2bf] transition-colors"
           title="Live Air-Gap Sovereignty Status"
         >
           <div className="flex items-center space-x-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${isNetworkClean ? "bg-[#10B981]" : "bg-[#EF4444]"}`} />
             <span>{network ? `${network.total_outbound_attempts} Outbound` : "0 Outbound"}</span>
           </div>
-          <span className="text-[#374151]">|</span>
+          <span className="w-px h-3 bg-white/[0.08]" />
           <div className="flex items-center space-x-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${isFullyOnline ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
             <span title={health?.details || undefined}>
@@ -131,7 +143,7 @@ export default function TopBar() {
         <button
           onClick={toggleTheme}
           type="button"
-          className="p-1 rounded-lg hover:bg-surface-hover text-[#6B7280] hover:text-[#E5E7EB] transition-colors flex items-center justify-center cursor-pointer active:scale-95"
+          className="p-2 rounded-lg hover:bg-white/[0.05] text-[#737d8d] hover:text-white transition-colors flex items-center justify-center cursor-pointer active:scale-95"
           title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {theme === "dark" ? (
@@ -146,16 +158,16 @@ export default function TopBar() {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center space-x-2.5 p-1.5 rounded-xl hover:bg-surface-hover transition-all border border-transparent hover:border-token"
+              className="flex items-center gap-2 p-1 rounded-xl hover:bg-white/[0.045] transition-all border border-transparent hover:border-white/[0.06]"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#22D3EE] to-[#0EA5E9] border border-accent/40 text-[#0A0E14] font-bold text-xs flex items-center justify-center shadow-sm">
+              <div className="w-8 h-8 rounded-[10px] bg-gradient-to-br from-[#9bbaff] to-[#5278cf] border border-white/10 text-[#07101f] font-bold text-xs flex items-center justify-center shadow-sm">
                 {userInitial}
               </div>
-              <div className="flex flex-col text-left">
+              <div className="hidden sm:flex flex-col text-left">
                 <span className="text-xs font-semibold text-primary leading-none">
                   {user.username}
                 </span>
-                <span className="text-[10px] text-accent font-mono leading-tight">
+                <span className="text-[9px] text-[#7185ae] font-mono leading-tight mt-0.5">
                   {user.role}
                 </span>
               </div>
@@ -164,7 +176,7 @@ export default function TopBar() {
 
             {/* Profile Dropdown Menu */}
             {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-surface border border-token rounded-2xl shadow-2xl p-2 z-50 animate-fadeIn">
+              <div className="absolute right-0 mt-2 w-60 bg-[#10141b] border border-white/[0.09] rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,.55)] p-2 z-50 animate-fadeIn">
                 <div className="p-2.5 border-b border-token">
                   <div className="text-xs font-semibold text-primary truncate">{user.username}</div>
                   <div className="text-[11px] text-muted truncate font-mono">{user.email}</div>

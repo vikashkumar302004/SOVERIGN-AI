@@ -98,7 +98,7 @@ export default function DeliverableGeneratorPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 select-none">
+    <div className="workspace-page max-w-5xl space-y-6 select-none">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-token">
         <div>

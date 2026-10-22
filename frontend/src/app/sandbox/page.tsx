@@ -94,7 +94,7 @@ export default function SandboxPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 select-none">
+    <div className="workspace-page space-y-6 select-none">
       {/* Header */}
       <div className="pb-4 border-b border-token flex items-center justify-between">
         <div>

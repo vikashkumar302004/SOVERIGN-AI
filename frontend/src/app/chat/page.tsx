@@ -94,7 +94,7 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
 
   // History Sidebar Collapsible State
-  const [showHistorySidebar, setShowHistorySidebar] = useState(true);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
 
   // Attachment Popover State
   const [showAttachPopover, setShowAttachPopover] = useState(false);
@@ -112,6 +112,10 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setShowHistorySidebar(window.matchMedia("(min-width: 768px)").matches);
+  }, []);
 
   const stopGeneration = () => {
     generationAbortRef.current?.abort();
@@ -656,19 +660,27 @@ export default function ChatPage() {
   const hasInputContent = Boolean(input.trim() || selectedFile || selectedRegistryDoc);
 
   return (
-    <div className="h-full min-h-0 flex w-full bg-[#0A0E14] overflow-hidden font-sans select-none transition-colors duration-300">
+    <div className="h-full min-h-0 flex w-full bg-[#07090d] overflow-hidden font-sans select-none">
       {/* History Session Sidebar (Collapsible) */}
       {showHistorySidebar && (
-        <div className="w-64 border-r border-[#232838]/60 bg-[#0A0E14] flex flex-col shrink-0 overflow-hidden shadow-xl transition-all duration-300">
-          <div className="p-3.5 border-b border-[#232838]/60 flex items-center justify-between">
+        <div className="absolute inset-y-0 left-0 z-30 w-[280px] border-r border-white/[0.07] bg-[#0b0e13] flex flex-col shrink-0 overflow-hidden shadow-[20px_0_60px_rgba(0,0,0,.35)] transition-all duration-300 md:relative md:w-64 md:shadow-none">
+          <div className="p-3.5 border-b border-white/[0.06] flex items-center justify-between">
             {/* ONE BOLD ACCENT MOMENT: Solid Cyan New Chat Button */}
             <button
               onClick={createNewSession}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 bg-[#22D3EE] hover:bg-[#38BDF8] text-[#0A0E14] font-semibold text-xs py-2 px-3 rounded-lg shadow-md transition-all duration-150 active:scale-95 disabled:opacity-50 tracking-wide uppercase font-sans cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 accent-gradient text-[#07101f] font-semibold text-xs py-2.5 px-3 rounded-[10px] shadow-[0_10px_30px_rgba(55,91,160,.18)] transition-all duration-150 active:scale-[.98] disabled:opacity-50 font-sans cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>New Chat</span>
+              <span>New conversation</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowHistorySidebar(false)}
+              aria-label="Close conversation history"
+              className="ml-2 rounded-lg p-2 text-[#6f7989] hover:bg-white/[0.05] hover:text-white md:hidden"
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
 
@@ -706,20 +718,20 @@ export default function ChatPage() {
       )}
 
       {/* Main Full-Width Chat Canvas Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#0A0E14] relative transition-colors duration-300 overflow-hidden">
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#07090d] relative overflow-hidden">
         {/* Slim Header Row */}
-        <div className="px-6 py-2.5 flex items-center justify-between border-b border-[#232838]/60 bg-[#0A0E14] shrink-0 relative z-10">
+        <div className="px-4 sm:px-6 h-12 flex items-center justify-between border-b border-white/[0.055] bg-[#080b0f]/90 shrink-0 relative z-10">
           <div className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280]">
             <button
               onClick={() => setShowHistorySidebar(!showHistorySidebar)}
-              className="p-1 rounded-md hover:bg-[#12161F] text-[#6B7280] hover:text-[#E5E7EB] transition-colors active:scale-95"
+              className="p-1.5 rounded-lg hover:bg-white/[0.05] text-[#6f7989] hover:text-[#e6ebf2] transition-colors active:scale-95"
               title={showHistorySidebar ? "Collapse History" : "Expand History"}
             >
               <PanelLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[#9CA3AF] tracking-tight uppercase font-sans">
-                Session #{activeSessionId || "New"}
+              <span className="text-[11px] font-medium text-[#818b9a] tracking-wide font-sans">
+                {activeSessionId ? `Conversation #${activeSessionId}` : "New conversation"}
               </span>
             </div>
           </div>
@@ -728,14 +740,26 @@ export default function ChatPage() {
         {/* Scrollable Messages Area */}
         <div className="flex-1 overflow-y-auto w-full relative z-10">
           {/* Spacing Rhythm: 40px vertical gap between speaker messages; flex justify-end hugs bottom when sparse */}
-          <div className={`max-w-3xl mx-auto w-full px-4 md:px-6 py-8 space-y-10 ${messages.length > 0 ? "min-h-full flex flex-col justify-end" : ""}`}>
+          <div className={`max-w-[820px] mx-auto w-full px-4 md:px-8 py-8 space-y-10 ${messages.length > 0 ? "min-h-full flex flex-col justify-end" : ""}`}>
             {messages.length === 0 ? (
               /* Truly Empty Session: Restrained 48px Icon + 1 line muted text */
-              <div className="h-[55vh] flex flex-col items-center justify-center text-center space-y-3 select-none">
-                <MessageSquare className="w-12 h-12 text-[#374151]" />
-                <p className="text-xs text-[#6B7280] font-mono">
-                  Start a conversation with Sovereign AI
-                </p>
+              <div className="min-h-[58vh] flex flex-col items-center justify-center text-center select-none px-2">
+                <div className="w-12 h-12 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.015] flex items-center justify-center shadow-[0_18px_50px_rgba(0,0,0,.3)]">
+                  <MessageSquare className="w-5 h-5 text-[#8eb1ff]" />
+                </div>
+                <h1 className="mt-6 text-2xl sm:text-3xl font-semibold tracking-[-.045em] text-[#eef2f8]">What are we solving?</h1>
+                <p className="mt-2 max-w-md text-[13px] leading-6 text-[#677180]">Ask across your private knowledge, inspect a document, or turn evidence into an operational decision.</p>
+                <div className="mt-7 grid w-full max-w-2xl gap-2 sm:grid-cols-3">
+                  {[
+                    "Summarize the latest document",
+                    "Find operational risks",
+                    "Draft an evidence-backed report",
+                  ].map((suggestion) => (
+                    <button key={suggestion} onClick={() => setInput(suggestion)} className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left text-[11px] leading-4 text-[#7d8797] transition hover:border-[#78a7ff]/25 hover:bg-[#78a7ff]/[0.05] hover:text-[#b6c8e8]">
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               messages.map((msg) => (
@@ -869,8 +893,8 @@ export default function ChatPage() {
         <div className="absolute bottom-16 left-0 right-0 h-10 bg-gradient-to-t from-[#0D1117] to-transparent pointer-events-none z-10" />
 
         {/* Requirement 5: Visually Anchored Bottom Input Zone (#0D1117 with 1px top border) */}
-        <div className="bg-[#0D1117] border-t border-white/[0.06] py-3 px-4 z-20 sticky bottom-0">
-          <div className="max-w-3xl mx-auto w-full relative">
+        <div className="bg-[#080b0f]/95 border-t border-white/[0.055] py-3 px-3 sm:px-4 z-20 sticky bottom-0 backdrop-blur-xl">
+          <div className="max-w-[820px] mx-auto w-full relative">
             {/* Removable Selected File Chip */}
             {(selectedFile || selectedRegistryDoc) && (
               <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#161B26] border border-white/[0.08] text-[#22D3EE] text-xs font-mono shadow-sm">
@@ -980,7 +1004,7 @@ export default function ChatPage() {
               />
 
               {/* Requirement 5: bg-[#161B26], border border-white/[0.08], rounded-xl, focus-within:border-[#22D3EE]/40 with NO glow ring */}
-              <div className="bg-[#161B26] border border-white/[0.08] focus-within:border-[#22D3EE]/40 rounded-xl p-1.5 flex items-center gap-2 shadow-sm transition-colors outline-none">
+              <div className="bg-[#10141b] border border-white/[0.09] focus-within:border-[#78a7ff]/40 rounded-2xl p-1.5 flex items-center gap-1 sm:gap-2 shadow-[0_16px_50px_rgba(0,0,0,.2)] transition-colors outline-none">
                 <button
                   type="button"
                   onClick={handleOpenAttachPopover}
@@ -1033,7 +1057,7 @@ export default function ChatPage() {
                   title={loading ? "Stop generation" : "Send message"}
                   className={`p-2 rounded-lg transition-all duration-150 active:scale-95 shrink-0 flex items-center justify-center ${
                     loading || hasInputContent
-                      ? "bg-[#22D3EE] hover:bg-[#38BDF8] text-[#0A0E14] opacity-100 cursor-pointer"
+                      ? "bg-[#82a9fa] hover:bg-[#9bbaff] text-[#07101f] opacity-100 cursor-pointer"
                       : "bg-[#1F2533] text-[#4B5563] opacity-40 cursor-not-allowed"
                   }`}
                 >

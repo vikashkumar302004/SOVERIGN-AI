@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { usePathname } from "next/navigation";
@@ -8,11 +9,14 @@ import { useAuth } from "@/context/AuthContext";
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { loading, token } = useAuth();
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const isAuthPage = pathname === "/login" || pathname === "/register";
   const isChatPage = pathname === "/chat" || pathname === "/";
 
+  useEffect(() => setNavigationOpen(false), [pathname]);
+
   if (isAuthPage) {
-    return <main className="flex-1 w-full min-h-screen bg-base transition-colors duration-300">{children}</main>;
+    return <main className="auth-main flex-1 w-full min-h-screen bg-base">{children}</main>;
   }
 
   if (loading) {
@@ -38,11 +42,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-base transition-colors duration-300">
-      <Sidebar />
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-base">
+      {navigationOpen && (
+        <button
+          aria-label="Close navigation"
+          onClick={() => setNavigationOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+        />
+      )}
+      <Sidebar open={navigationOpen} onClose={() => setNavigationOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <TopBar />
-        <main className={`flex-1 h-full min-h-0 overflow-hidden bg-base transition-colors duration-300 ${isChatPage ? "" : "p-6 md:p-8 overflow-y-auto"}`}>
+        <TopBar onOpenNavigation={() => setNavigationOpen(true)} />
+        <main className={`flex-1 h-full min-h-0 overflow-hidden bg-base ${isChatPage ? "" : "px-4 py-5 sm:px-6 sm:py-7 xl:px-10 xl:py-9 overflow-y-auto"}`}>
           {children}
         </main>
       </div>
