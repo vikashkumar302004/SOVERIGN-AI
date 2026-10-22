@@ -12,6 +12,11 @@ env/
 venv/
 .venv/
 ENV/
+.env
+.env.*
+!.env.compose.example
+!backend/.env.example
+!frontend/.env.example
 build/
 develop-eggs/
 dist/

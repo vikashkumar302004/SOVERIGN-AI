@@ -119,6 +119,11 @@ def startup_event():
     network_monitor.start()
 
 
+@app.on_event("shutdown")
+def shutdown_event():
+    network_monitor.stop()
+
+
 def _backfill_inspection_deliverables() -> None:
     """Register legacy inspection reports so authorization can be enforced."""
     db = SessionLocal()

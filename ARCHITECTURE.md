@@ -294,3 +294,7 @@ Database changes are versioned in `backend/migrations` with Alembic. Every relea
 recorded revision with the migration head and fails fast on drift, preventing mixed application and
 schema versions. CI verifies upgrade, downgrade, re-upgrade, and model-to-schema drift on SQLite;
 production deployments can use PostgreSQL through `DATABASE_URL`.
+
+## Production container topology
+
+The Compose deployment exposes only the Next.js frontend. Next.js proxies same-origin API and health traffic to FastAPI over a private bridge network, and FastAPI connects to PostgreSQL on that same network. Ollama remains host-managed so operators can control GPU drivers and model storage independently. Both application containers run as unprivileged users; the backend performs `alembic upgrade head` before accepting traffic. Liveness gates container orchestration without depending on the model runtime, while `/health` reports database, Ollama, and required-model readiness.

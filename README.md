@@ -175,6 +175,31 @@ Ensure Ollama service is running on `http://localhost:11434`.
 - For a database created by an older Sovereign AI build, take a backup first. If its tables already match the current schema, run `alembic stamp 68928c167acc` once, followed by `alembic upgrade head`.
 - Never run `alembic stamp` on a fresh or partially upgraded database; stamping records a revision without changing tables.
 
+### Containerized production deployment
+
+The repository includes non-root, multi-stage containers for the API and web UI plus a health-checked PostgreSQL service. Database migrations run automatically before the API starts, while uploads, generated reports, audio scratch data, and PostgreSQL data use persistent named volumes.
+
+1. Keep Ollama running on the host and pull both models:
+   ```bash
+   ollama pull llama3.2:3b
+   ollama pull qwen2.5-coder:7b
+   ```
+2. Create deployment secrets without committing them:
+   ```bash
+   cp .env.compose.example .env
+   ```
+   Replace `POSTGRES_PASSWORD` and `SECRET_KEY`. Use URL-safe characters for the database password.
+3. Build and start the stack:
+   ```bash
+   docker compose up --build -d
+   docker compose ps
+   ```
+4. Open `http://localhost:3000`. Check API process liveness through `http://localhost:3000/health/live` and full database/model readiness through `http://localhost:3000/health`.
+
+For HTTPS deployments, set `PUBLIC_ORIGIN` to the exact HTTPS URL and `AUTH_COOKIE_SECURE=true`. Only the frontend publishes a host port; PostgreSQL and the backend remain on the private Compose network. Code execution stays disabled in this deployment because it requires a dedicated isolated worker.
+
+Stop containers with `docker compose down`. Persistent data remains intact. Use `docker compose down -v` only when you intentionally want to permanently delete all Compose-managed data.
+
 ---
 
 ### Step 3: Setup & Run Frontend

@@ -1,0 +1,81 @@
+name: sovereign-ai
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sovereign
+      POSTGRES_USER: sovereign
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sovereign -d sovereign"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [sovereign_internal]
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      DATABASE_URL: postgresql+psycopg://sovereign:${POSTGRES_PASSWORD}@postgres:5432/sovereign
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      TESSERACT_CMD: /usr/bin/tesseract
+      CORS_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:3000}
+      TRUSTED_HOSTS: backend,localhost,127.0.0.1
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      REQUIRE_DATABASE_MIGRATIONS: "true"
+      ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
+      ENABLE_CODE_SANDBOX: "false"
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - uploaded_documents:/app/uploaded_documents
+      - deliverables:/app/deliverables
+      - temp_audio:/app/temp_audio
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [sovereign_internal]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_ORIGIN: http://backend:8000
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [sovereign_internal]
+
+networks:
+  sovereign_internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  uploaded_documents:
+  deliverables:
+  temp_audio:

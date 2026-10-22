@@ -6,6 +6,10 @@ def _csv_env(name: str, default: str) -> list[str]:
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 TESSERACT_CMD = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+if not os.path.exists(TESSERACT_CMD):
+    system_tesseract = shutil.which("tesseract")
+    if system_tesseract:
+        TESSERACT_CMD = system_tesseract
 GXX_CMD = os.getenv(
     "GXX_CMD",
     r"C:\Users\vikash\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\g++.exe",
