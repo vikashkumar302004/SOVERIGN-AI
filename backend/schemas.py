@@ -11,14 +11,14 @@ class UserRoleEnum(str, Enum):
 
 
 class UserRegisterRequest(BaseModel):
-    username: str
-    email: str
-    password: str
+    username: str = Field(min_length=3, max_length=64)
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=12, max_length=128)
 
 
 class UserLoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=254)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class UserResponse(BaseModel):
@@ -44,7 +44,7 @@ class UserListResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: Optional[int] = None
-    prompt: str
+    prompt: str = Field(min_length=1, max_length=32000)
 
 
 class ChatResponse(BaseModel):
@@ -98,8 +98,8 @@ class DocumentListResponse(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    query: str
-    top_k: Optional[int] = 5
+    query: str = Field(min_length=1, max_length=4096)
+    top_k: Optional[int] = Field(default=5, ge=1, le=20)
 
 
 class SearchResultItem(BaseModel):
@@ -120,9 +120,9 @@ class SearchResponse(BaseModel):
 
 
 class SandboxRequest(BaseModel):
-    language: str
-    code: str
-    stdin: Optional[str] = None
+    language: str = Field(min_length=1, max_length=32)
+    code: str = Field(min_length=1, max_length=100000)
+    stdin: Optional[str] = Field(default=None, max_length=20000)
 
 
 class SandboxResponse(BaseModel):
@@ -180,8 +180,8 @@ class InspectionPendingReviewResponse(BaseModel):
 
 
 class InspectionReviewRequest(BaseModel):
-    decision: str  # "APPROVED" or "REJECTED"
-    comment: Optional[str] = None
+    decision: str = Field(min_length=1, max_length=16)  # "APPROVED" or "REJECTED"
+    comment: Optional[str] = Field(default=None, max_length=4000)
 
 
 class NetworkEventItem(BaseModel):

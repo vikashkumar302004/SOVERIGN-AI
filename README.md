@@ -170,6 +170,7 @@ Ensure Ollama service is running on `http://localhost:11434`.
 - Copy `backend/.env.example` into your deployment secret/config system and replace every placeholder.
 - Production supports PostgreSQL through `DATABASE_URL`; SQLite remains convenient for single-machine development.
 - Run `alembic upgrade head` as a release step before starting the API. With `ENVIRONMENT=production`, the API refuses to start when the database revision is stale.
+- Set `TRUSTED_HOSTS` to the exact internal hostnames serving the API. Interactive API docs are disabled by default in production and can be deliberately enabled with `ENABLE_API_DOCS=true`.
 - For a database created by an older Sovereign AI build, take a backup first. If its tables already match the current schema, run `alembic stamp 68928c167acc` once, followed by `alembic upgrade head`.
 - Never run `alembic stamp` on a fresh or partially upgraded database; stamping records a revision without changing tables.
 

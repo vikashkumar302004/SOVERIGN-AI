@@ -9,6 +9,7 @@ from typing import BinaryIO, List, Optional
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import httpx
 
 import config
@@ -78,8 +79,17 @@ from network_monitor import network_monitor
 from whisper_stt import init_whisper, transcribe_audio_file
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-app = FastAPI(title="Sovereign AI Backend", version="5.0.0")
+app = FastAPI(
+    title="Sovereign AI Backend",
+    version="5.0.0",
+    docs_url="/docs" if config.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if config.ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if config.ENABLE_API_DOCS else None,
+)
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=config.TRUSTED_HOSTS)
 
 app.add_middleware(
     CORSMiddleware,
@@ -202,8 +212,19 @@ async def audit_logger_middleware(request: Request, call_next):
         except Exception as exc:
             print(f"Failed to save audit log: {exc}")
 
+    _apply_security_headers(response)
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+def _apply_security_headers(response: Response) -> None:
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), geolocation=(), payment=()"
+    response.headers["Cache-Control"] = "no-store"
+    if config.ENVIRONMENT == "production" and config.AUTH_COOKIE_SECURE:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
 
 OLLAMA_URL = config.OLLAMA_URL
@@ -364,6 +385,14 @@ def _required_model_names() -> list[str]:
     return sorted(set(load_models_registry().values()))
 
 
+def _database_is_reachable(db: Session) -> bool:
+    try:
+        db.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+
+
 async def _fetch_ollama_model_names(timeout_seconds: float = 1.5) -> list[str]:
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         response = await client.get(f"{OLLAMA_URL}/api/tags")
@@ -376,12 +405,7 @@ async def health_check(db: Session = Depends(get_db)):
     global _health_cache
     now = time.time()
 
-    db_connected = False
-    try:
-        db.execute(text("SELECT 1"))
-        db_connected = True
-    except Exception as e:
-        db_connected = False
+    db_connected = _database_is_reachable(db)
 
     if now - _health_cache["timestamp"] < 5.0:
         ollama_reachable = _health_cache["ollama_reachable"]
@@ -831,6 +855,11 @@ async def chat(
         raise HTTPException(status_code=400, detail="Prompt must not be empty")
 
     prompt_text = prompt.strip()
+    if len(prompt_text) > config.MAX_PROMPT_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Prompt exceeds the {config.MAX_PROMPT_CHARS} character limit",
+        )
 
     # Retrieve or Create ChatSession
     session = None
@@ -1935,8 +1964,10 @@ async def transcribe_voice(
         return {"text": transcript}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Voice transcription failed: {str(e)}")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Voice transcription failed")
     finally:
         if os.path.exists(temp_path):
             try:

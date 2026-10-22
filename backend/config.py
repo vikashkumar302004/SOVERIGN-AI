@@ -45,7 +45,13 @@ CORS_ORIGINS = _csv_env(
     "CORS_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000",
 )
+TRUSTED_HOSTS = _csv_env("TRUSTED_HOSTS", "localhost,127.0.0.1,testserver")
+ENABLE_API_DOCS = os.getenv(
+    "ENABLE_API_DOCS",
+    "false" if ENVIRONMENT == "production" else "true",
+).lower() in {"1", "true", "yes"}
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "32000"))
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
 RAG_MAX_CANDIDATE_CHUNKS = int(os.getenv("RAG_MAX_CANDIDATE_CHUNKS", "2000"))
 CHAT_CONTEXT_CHARS = int(os.getenv("CHAT_CONTEXT_CHARS", "12000"))

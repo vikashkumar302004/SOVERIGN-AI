@@ -6,6 +6,7 @@ import uuid
 from unittest.mock import patch
 
 from fastapi import HTTPException, Response
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
@@ -27,6 +28,7 @@ from models import (  # noqa: E402
     User,
     UserRole,
 )
+from schemas import SearchRequest, UserRegisterRequest  # noqa: E402
 
 
 class AuthAndIsolationTests(unittest.TestCase):
@@ -179,6 +181,26 @@ class AuthAndIsolationTests(unittest.TestCase):
             main._parse_ollama_model_names(payload),
             ["llama3.2:3b", "qwen2.5-coder:7b"],
         )
+
+    def test_database_health_probe_executes_real_query(self):
+        self.assertTrue(main._database_is_reachable(self.db))
+
+    def test_security_headers_prevent_browser_data_leakage(self):
+        response = Response()
+        main._apply_security_headers(response)
+        self.assertEqual(response.headers["x-content-type-options"], "nosniff")
+        self.assertEqual(response.headers["x-frame-options"], "DENY")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_request_schemas_reject_abusive_sizes(self):
+        with self.assertRaises(ValidationError):
+            UserRegisterRequest(
+                username="ab",
+                email="test@example.test",
+                password="a-secure-password",
+            )
+        with self.assertRaises(ValidationError):
+            SearchRequest(query="valid", top_k=1000)
 
 
 if __name__ == "__main__":
