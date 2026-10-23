@@ -53,7 +53,7 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
       </div>
 
       {/* Syntax Highlighted Code */}
-      <div className="p-4 text-xs overflow-x-auto leading-relaxed tracking-normal font-mono">
+      <div className="p-4 text-[14px] overflow-x-auto leading-relaxed tracking-normal font-mono">
         <SyntaxHighlighter
           language={language || "text"}
           style={theme === "light" ? vs : vscDarkPlus}
@@ -61,7 +61,7 @@ function CodeBlock({ language, value }: { language: string; value: string }) {
             margin: 0,
             padding: 0,
             background: "transparent",
-            fontSize: "13px",
+            fontSize: "14px",
             lineHeight: "1.65",
             letterSpacing: "0.01em",
           }}
@@ -191,7 +191,7 @@ export default function MarkdownRenderer({ content, isStreaming }: MarkdownRende
       {viewAsDiagram && chartCode ? (
         <MermaidDiagram chartCode={chartCode} />
       ) : (
-        <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed font-sans">
+        <div className="prose prose-invert max-w-none text-slate-200 text-[16px] leading-7 font-sans">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -209,7 +209,7 @@ export default function MarkdownRenderer({ content, isStreaming }: MarkdownRende
                 }
                 return (
                   <code
-                    className="bg-slate-800/80 text-cyan-300 px-1.5 py-0.5 rounded text-[12.5px] font-mono border border-slate-700/60"
+                    className="bg-slate-800/80 text-cyan-300 px-1.5 py-0.5 rounded text-[14px] font-mono border border-slate-700/60"
                     {...props}
                   >
                     {children}
@@ -219,7 +219,7 @@ export default function MarkdownRenderer({ content, isStreaming }: MarkdownRende
               table({ children }: any) {
                 return (
                   <div className="overflow-x-auto my-4 border border-slate-800 rounded-xl shadow-xl bg-[#090E1A]">
-                    <table className="min-w-full divide-y divide-slate-800 text-xs text-slate-200">
+                    <table className="min-w-full divide-y divide-slate-800 text-[14px] text-slate-200">
                       {children}
                     </table>
                   </div>
@@ -240,46 +240,46 @@ export default function MarkdownRenderer({ content, isStreaming }: MarkdownRende
               },
               th({ children }: any) {
                 return (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-400 border-b border-slate-800">
+                  <th className="px-4 py-3 text-left text-[14px] font-semibold text-cyan-400 border-b border-slate-800">
                     {children}
                   </th>
                 );
               },
               td({ children }: any) {
                 return (
-                  <td className="px-4 py-2.5 text-slate-300 font-mono text-xs whitespace-normal">
+                  <td className="px-4 py-2.5 text-slate-300 font-mono text-[14px] whitespace-normal">
                     {children}
                   </td>
                 );
               },
               blockquote({ children }: any) {
                 return (
-                  <blockquote className="border-l-4 border-cyan-500 pl-4 py-2 my-4 bg-cyan-950/20 text-slate-300 italic text-xs rounded-r-lg border-y border-r border-slate-800/40">
+                  <blockquote className="border-l-4 border-cyan-500 pl-4 py-3 my-4 bg-cyan-950/20 text-slate-300 italic text-[15px] leading-7 rounded-r-lg border-y border-r border-slate-800/40">
                     {children}
                   </blockquote>
                 );
               },
               h1({ children }: any) {
                 return (
-                  <h1 className="text-lg font-bold text-slate-100 mt-5 mb-2.5 pb-1 border-b border-slate-800">
+                  <h1 className="text-[24px] leading-tight font-bold text-slate-100 mt-7 mb-3 pb-2 border-b border-slate-800">
                     {children}
                   </h1>
                 );
               },
               h2({ children }: any) {
-                return <h2 className="text-base font-semibold text-slate-100 mt-4 mb-2">{children}</h2>;
+                return <h2 className="text-[20px] leading-tight font-semibold text-slate-100 mt-6 mb-3">{children}</h2>;
               },
               h3({ children }: any) {
-                return <h3 className="text-sm font-semibold text-slate-200 mt-3 mb-1.5">{children}</h3>;
+                return <h3 className="text-[17px] font-semibold text-slate-200 mt-5 mb-2">{children}</h3>;
               },
               ul({ children }: any) {
-                return <ul className="list-disc list-inside my-3 space-y-1.5 text-slate-300 text-sm pl-1">{children}</ul>;
+                return <ul className="list-disc my-4 space-y-2 text-slate-300 text-[16px] leading-7 pl-6 marker:text-cyan-400">{children}</ul>;
               },
               ol({ children }: any) {
-                return <ol className="list-decimal list-inside my-3 space-y-1.5 text-slate-300 text-sm pl-1">{children}</ol>;
+                return <ol className="list-decimal my-4 space-y-2 text-slate-300 text-[16px] leading-7 pl-6 marker:text-cyan-400">{children}</ol>;
               },
               p({ children }: any) {
-                return <p className="mb-3.5 last:mb-0 text-slate-200 leading-relaxed">{children}</p>;
+                return <p className="mb-4 last:mb-0 whitespace-pre-wrap text-slate-200 text-[16px] leading-7">{children}</p>;
               },
             }}
           >

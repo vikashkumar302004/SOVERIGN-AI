@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import shutil
 import time
 import uuid
@@ -378,6 +379,12 @@ When the user asks for a flowchart, architecture, process map, or diagram, inclu
 valid fenced ```mermaid block. Start with `flowchart TD`, define nodes like
 `A["Short label"]`, and connect them with `A --> B` or `A -->|label| B`.
 Never use malformed edges such as `A -- "label" -> B`.
+Format the response for humans, not like a raw model dump. Use short paragraphs,
+descriptive headings only when useful, bullets for lists, and fenced code blocks for code.
+For creative writing such as songs, poems, scripts, captions, or stories, return the
+finished creative work first with clean line breaks and clear sections (for example
+[Verse], [Chorus], [Bridge]) instead of explaining the request. Do not wrap creative
+writing in a code block. Avoid filler, repeated disclaimers, and unnecessary preambles.
 Use clear Markdown when it improves readability."""
 
 
@@ -407,6 +414,15 @@ DOCUMENT_OVERVIEW_SIGNALS = (
 def _is_document_overview_prompt(prompt: str) -> bool:
     normalized = " ".join(prompt.lower().split())
     return any(signal in normalized for signal in DOCUMENT_OVERVIEW_SIGNALS)
+
+
+def _extract_inspection_recommendation(model_analysis: str) -> str:
+    matches = re.findall(
+        r"(?:FINAL\s+RECOMMENDATION|RECOMMENDATION|VERDICT)\s*[:\-]\s*(PASS|FAIL|NEEDS[\s-]?REVIEW)",
+        model_analysis.upper(),
+    )
+    explicit_verdict = matches[-1].replace("-", " ") if matches else ""
+    return explicit_verdict if explicit_verdict in {"PASS", "FAIL"} else "NEEDS REVIEW"
 
 
 def _bounded_chat_history(messages: list[ChatMessage]) -> list[dict]:
@@ -1641,13 +1657,7 @@ async def inspection_approval_workflow(
         scored_results.sort(key=lambda x: x["similarity_score"], reverse=True)
         related_context = scored_results[:3]
 
-    rec_upper = model_analysis.upper()
-    if "FAIL" in rec_upper:
-        ai_rec = "FAIL"
-    elif "PASS" in rec_upper:
-        ai_rec = "PASS"
-    else:
-        ai_rec = "NEEDS REVIEW"
+    ai_rec = _extract_inspection_recommendation(model_analysis)
 
     workflow_id = f"wf-{uuid.uuid4().hex[:12]}"
     report_meta = generate_inspection_report_docx(

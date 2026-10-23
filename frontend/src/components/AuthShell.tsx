@@ -2,92 +2,76 @@
 
 import { Bot, Braces, Database, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
 
-export default function AuthShell({
-  children,
-  eyebrow,
-  title,
-  description,
-}: {
+export default function AuthShell({ children, eyebrow, title, description }: {
   children: React.ReactNode;
   eyebrow: string;
   title: string;
   description: string;
 }) {
+  const features = [
+    [LockKeyhole, "Private by design", "Everything stays on this machine"],
+    [Database, "Document aware", "Ask questions across your own files"],
+    [Braces, "Built for real work", "Chat, code and workflows in one place"],
+  ] as const;
+
   return (
-    <div className="min-h-[100dvh] w-full bg-[#07090d] text-[#f4f6fa] overflow-hidden relative">
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(900px 600px at 12% 20%, rgba(82,119,190,.18), transparent 66%), radial-gradient(700px 500px at 100% 100%, rgba(106,83,160,.09), transparent 70%)" }}
-      />
-      <div className="absolute inset-0 opacity-[0.16] pointer-events-none"
-        style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px)", backgroundSize: "56px 56px", maskImage: "linear-gradient(to right, black, transparent 72%)" }}
-      />
-      <div className="auth-orb auth-orb-one" />
-      <div className="auth-orb auth-orb-two" />
+    <div className="auth-screen min-h-[100dvh] overflow-hidden bg-[#080b10] text-[#f5f7fb]">
+      <div className="auth-mesh" aria-hidden="true" />
+      <div className="auth-glow auth-glow-a" aria-hidden="true" />
+      <div className="auth-glow auth-glow-b" aria-hidden="true" />
 
-      <div className="relative min-h-[100dvh] mx-auto grid w-full max-w-[1720px] lg:grid-cols-[minmax(0,1fr)_minmax(520px,600px)] lg:gap-16 xl:gap-24 px-5 sm:px-8 lg:px-12 xl:px-16">
-        <section className="hidden lg:flex flex-col justify-between py-10 xl:py-12">
-          <div className="flex items-center gap-3">
-            <img src="/sovereign_logo.png" alt="" className="auth-logo-float w-12 h-12 rounded-2xl border border-white/[0.09] object-cover shadow-[0_12px_34px_rgba(83,126,211,.18)]" />
-            <div>
-              <div className="text-lg font-semibold tracking-[-.02em]">Sovereign AI</div>
-              <div className="mt-1 text-sm font-mono tracking-[.1em] uppercase text-[#7d899c]">Private intelligence system</div>
-            </div>
+      <header className="auth-nav">
+        <div className="flex items-center gap-3">
+          <img src="/sovereign_logo.png" alt="Sovereign AI" className="auth-logo-float h-11 w-11 rounded-2xl border border-white/10 object-cover" />
+          <div>
+            <div className="text-[17px] font-semibold tracking-[-.02em]">Sovereign AI</div>
+            <div className="mt-0.5 text-[13px] text-[#8792a3]">Private AI workspace</div>
           </div>
+        </div>
+        <div className="hidden items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[.06] px-4 py-2 text-[14px] text-[#a8b3c3] sm:flex">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.65)]" />
+          Local system ready
+        </div>
+      </header>
 
-          <div className="max-w-[720px] py-10">
-            <div className="rise inline-flex items-center gap-2 rounded-full border border-[#78a7ff]/20 bg-[#78a7ff]/[0.07] px-5 py-2.5 text-sm font-mono tracking-[.08em] uppercase text-[#a8c2ff]">
-              <Sparkles className="h-4 w-4" /> Intelligence stays yours
-            </div>
-            <h1 className="rise mt-8 max-w-[700px] text-[clamp(3.6rem,4.6vw,5.7rem)] leading-[.95] font-semibold tracking-[-.065em]" style={{ "--i": 1 } as React.CSSProperties}>
-              Your data.<br/><span className="text-[#8393ad]">Your models.</span><br/>Your command.
-            </h1>
-            <p className="rise mt-8 max-w-[650px] text-lg leading-8 text-[#a0a9b7]" style={{ "--i": 2 } as React.CSSProperties}>
-              Your private AI for natural conversations, coding, document intelligence, voice input, and focused work—powered entirely inside your environment.
-            </p>
-            <div className="rise mt-10 grid grid-cols-3 gap-4 max-w-[680px]" style={{ "--i": 3 } as React.CSSProperties}>
-              {[
-                [LockKeyhole, "Air-gapped", "Zero cloud dependency"],
-                [Database, "Grounded", "Source-aware answers"],
-                [Braces, "Specialized", "Task-routed models"],
-              ].map(([Icon, label, copy]) => {
-                const FeatureIcon = Icon as typeof Bot;
-                return (
-                  <div key={label as string} className="auth-feature-card rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
-                    <FeatureIcon className="h-6 w-6 text-[#87aafb]" />
-                    <div className="mt-5 text-base font-semibold">{label as string}</div>
-                    <div className="mt-2 text-sm leading-6 text-[#7f8998]">{copy as string}</div>
-                  </div>
-                );
-              })}
-            </div>
+      <main className="auth-main relative z-10 mx-auto grid min-h-[calc(100dvh-92px)] w-full max-w-[1360px] items-center gap-12 px-6 py-10 lg:grid-cols-[1fr_520px] lg:px-12">
+        <section className="hidden max-w-[650px] lg:block">
+          <div className="rise inline-flex items-center gap-2 rounded-full border border-[#7ea7ff]/20 bg-[#7ea7ff]/[.07] px-4 py-2 text-[14px] font-medium text-[#afc6f7]">
+            <Sparkles className="h-4 w-4" /> Your intelligence, under your control
           </div>
-
-          <div className="flex items-center justify-between text-sm font-mono uppercase tracking-[.08em] text-[#707b8c]">
-            <span>Local-first architecture</span>
-            <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#51d6a5]" /> System isolated</span>
+          <h1 className="rise mt-7 text-[clamp(3.1rem,4vw,4.6rem)] font-semibold leading-[1.02] tracking-[-.055em]" style={{ "--i": 1 } as React.CSSProperties}>
+            One private workspace.<br /><span className="text-[#8394b2]">Every serious task.</span>
+          </h1>
+          <p className="rise mt-6 max-w-[600px] text-[19px] leading-8 text-[#a6afbd]" style={{ "--i": 2 } as React.CSSProperties}>
+            Talk naturally, understand documents, write code and move work through approvals—without sending your context outside.
+          </p>
+          <div className="rise mt-9 grid grid-cols-3 gap-3" style={{ "--i": 3 } as React.CSSProperties}>
+            {features.map(([Icon, label, copy]) => (
+              <div key={label} className="auth-feature-card rounded-2xl border border-white/[.075] bg-white/[.025] p-5">
+                <Icon className="h-5 w-5 text-[#8fb1fb]" />
+                <div className="mt-4 text-[15px] font-semibold">{label}</div>
+                <div className="mt-2 text-[14px] leading-5 text-[#7f8a9a]">{copy}</div>
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="flex min-h-[100dvh] items-center justify-center py-8">
-          <div className="auth-panel-enter w-full max-w-[560px]">
-            <div className="lg:hidden mb-10 flex items-center gap-3">
-              <img src="/sovereign_logo.png" alt="" className="w-10 h-10 rounded-xl border border-white/[0.09] object-cover" />
-              <div className="text-sm font-semibold">Sovereign AI</div>
+        <section className="auth-panel-enter mx-auto w-full max-w-[520px]">
+          <div className="auth-card-shine rounded-[26px] border border-white/[.1] bg-[#11161f]/90 p-7 shadow-[0_40px_120px_rgba(0,0,0,.45)] backdrop-blur-2xl sm:p-9">
+            <div className="mb-7">
+              <div className="flex items-center gap-2 text-[14px] font-semibold uppercase tracking-[.12em] text-[#83aaff]">
+                <ShieldCheck className="h-4 w-4" /> {eyebrow}
+              </div>
+              <h2 className="mt-4 text-[38px] font-semibold leading-tight tracking-[-.045em]">{title}</h2>
+              <p className="mt-3 text-[16px] leading-7 text-[#9ca7b7]">{description}</p>
             </div>
-            <div className="mb-9">
-              <div className="workspace-eyebrow !text-sm">{eyebrow}</div>
-              <h2 className="mt-4 text-[2.8rem] leading-tight font-semibold tracking-[-.045em]">{title}</h2>
-              <p className="mt-4 text-lg leading-8 text-[#9aa4b3]">{description}</p>
-            </div>
-            <div className="auth-card-shine rounded-[28px] border border-white/[0.1] bg-[#10141b]/92 p-8 sm:p-10 shadow-[0_34px_110px_rgba(0,0,0,.42)] backdrop-blur-xl">
-              {children}
-            </div>
-            <div className="mt-7 flex items-center justify-center gap-2 text-sm text-[#778294] font-mono uppercase tracking-[.08em]">
-              <ShieldCheck className="h-4 w-4 text-[#7897d3]" /> Encrypted local session
-            </div>
+            {children}
+          </div>
+          <div className="mt-5 flex items-center justify-center gap-2 text-[14px] text-[#7f8a9a]">
+            <Bot className="h-4 w-4 text-[#7398e8]" /> Encrypted local session
           </div>
         </section>
-      </div>
+      </main>
     </div>
   );
 }

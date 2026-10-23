@@ -227,6 +227,22 @@ class AuthAndIsolationTests(unittest.TestCase):
         self.assertEqual(bounded[-1]["content"], "9" * 4000)
         self.assertLess(len(bounded), len(messages))
 
+    def test_inspection_verdict_requires_an_explicit_final_recommendation(self):
+        self.assertEqual(
+            main._extract_inspection_recommendation(
+                "A prior check could fail.\nFinal Recommendation: PASS"
+            ),
+            "PASS",
+        )
+        self.assertEqual(
+            main._extract_inspection_recommendation("Verdict: FAIL"),
+            "FAIL",
+        )
+        self.assertEqual(
+            main._extract_inspection_recommendation("Several readings are inconclusive."),
+            "NEEDS REVIEW",
+        )
+
     def test_ollama_model_registry_parser_is_stable(self):
         payload = {
             "models": [
