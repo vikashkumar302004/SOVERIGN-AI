@@ -16,6 +16,7 @@ import {
   Users,
   X,
   Sparkles,
+  Workflow,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -31,6 +32,7 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
         { name: "Chat", path: "/chat", icon: MessageSquare, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
         { name: "Documents", path: "/documents", icon: FileText, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
         { name: "Search", path: "/knowledge", icon: Database, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Automations", path: "/automations", icon: Workflow, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
       ],
     },
     {

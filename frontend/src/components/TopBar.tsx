@@ -93,6 +93,7 @@ export default function TopBar({ onOpenNavigation }: { onOpenNavigation?: () => 
     "/chat": "Intelligence",
     "/documents": "Documents",
     "/knowledge": "Knowledge",
+    "/automations": "Automations",
     "/sandbox": "Sandbox",
     "/inspection": "Inspections",
     "/generate": "Deliverables",

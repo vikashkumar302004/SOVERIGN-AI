@@ -195,4 +195,37 @@ class GeneratedDeliverable(Base):
     source_document = relationship("Document", foreign_keys=[source_document_id])
 
 
+class Automation(Base):
+    __tablename__ = "automations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False, default="")
+    instruction = Column(Text, nullable=False)
+    trigger_type = Column(String, nullable=False, default="MANUAL")
+    enabled = Column(Boolean, nullable=False, default=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    last_run_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    owner = relationship("User", foreign_keys=[owner_id])
+    runs = relationship("AutomationRun", back_populates="automation", cascade="all, delete-orphan")
+
+
+class AutomationRun(Base):
+    __tablename__ = "automation_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    automation_id = Column(Integer, ForeignKey("automations.id"), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=True)
+    status = Column(String, nullable=False, default="RUNNING")
+    output = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime, default=datetime.now)
+    completed_at = Column(DateTime, nullable=True)
+
+    automation = relationship("Automation", back_populates="runs")
+    document = relationship("Document")
+
+
 

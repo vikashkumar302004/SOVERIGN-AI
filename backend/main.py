@@ -30,6 +30,8 @@ from models import (
     InspectionWorkflow,
     GeneratedDeliverable,
     LoginAttempt,
+    Automation,
+    AutomationRun,
 )
 from schemas import (
     UserRegisterRequest,
@@ -64,6 +66,9 @@ from schemas import (
     InspectionReviewItem,
     InspectionPendingReviewResponse,
     InspectionReviewRequest,
+    AutomationCreateRequest,
+    AutomationRunRequest,
+    AutomationToggleRequest,
 )
 from auth import (
     hash_password,
@@ -2073,6 +2078,185 @@ async def get_deliverable(
         filename=filename,
         media_type=media_type,
     )
+
+
+def _automation_item(item: Automation) -> dict:
+    return {
+        "id": item.id,
+        "name": item.name,
+        "description": item.description,
+        "instruction": item.instruction,
+        "trigger_type": item.trigger_type,
+        "enabled": item.enabled,
+        "run_count": len(item.runs),
+        "last_run_at": item.last_run_at.isoformat() if item.last_run_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else "",
+    }
+
+
+@app.get("/api/v1/automations")
+async def list_automations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = (
+        db.query(Automation)
+        .filter(Automation.owner_id == current_user.id)
+        .order_by(Automation.created_at.desc())
+        .all()
+    )
+    return {"automations": [_automation_item(item) for item in items], "total": len(items)}
+
+
+@app.post("/api/v1/automations", status_code=201)
+async def create_automation(
+    request: AutomationCreateRequest,
+    http_req: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = Automation(
+        name=request.name.strip(),
+        description=request.description.strip(),
+        instruction=request.instruction.strip(),
+        trigger_type=request.trigger_type,
+        enabled=True,
+        owner_id=current_user.id,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    http_req.state.audit_summary = f"Created local automation '{item.name}'"
+    return _automation_item(item)
+
+
+@app.patch("/api/v1/automations/{automation_id}/toggle")
+async def toggle_automation(
+    automation_id: int,
+    request: AutomationToggleRequest,
+    http_req: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = db.query(Automation).filter(
+        Automation.id == automation_id,
+        Automation.owner_id == current_user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Automation not found.")
+    item.enabled = request.enabled
+    db.commit()
+    db.refresh(item)
+    http_req.state.audit_summary = f"{'Enabled' if item.enabled else 'Paused'} automation '{item.name}'"
+    return _automation_item(item)
+
+
+@app.get("/api/v1/automations/runs")
+async def list_automation_runs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    runs = (
+        db.query(AutomationRun)
+        .join(Automation)
+        .filter(Automation.owner_id == current_user.id)
+        .order_by(AutomationRun.started_at.desc())
+        .limit(30)
+        .all()
+    )
+    return {
+        "runs": [
+            {
+                "id": run.id,
+                "automation_id": run.automation_id,
+                "automation_name": run.automation.name,
+                "document_filename": run.document.filename if run.document else None,
+                "status": run.status,
+                "output": run.output,
+                "error": run.error,
+                "started_at": run.started_at.isoformat() if run.started_at else "",
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            }
+            for run in runs
+        ],
+        "total": len(runs),
+    }
+
+
+@app.post("/api/v1/automations/{automation_id}/run")
+async def run_automation(
+    automation_id: int,
+    request: AutomationRunRequest,
+    http_req: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = db.query(Automation).filter(
+        Automation.id == automation_id,
+        Automation.owner_id == current_user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Automation not found.")
+    if not item.enabled:
+        raise HTTPException(status_code=409, detail="Enable this automation before running it.")
+
+    document = None
+    if request.document_id is not None:
+        document = db.query(Document).filter(Document.id == request.document_id).first()
+        if not document or not _can_access_document(document, current_user):
+            raise HTTPException(status_code=404, detail="Document not found.")
+
+    run = AutomationRun(
+        automation_id=item.id,
+        document_id=document.id if document else None,
+        status="RUNNING",
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    context = ""
+    if document:
+        context = (
+            f"\n\nDOCUMENT: {document.filename}\n"
+            f"{document.extracted_text[:config.CHAT_CONTEXT_CHARS]}"
+        )
+    prompt = (
+        "You are running a private local automation. Complete the task directly and "
+        "return a polished, actionable Markdown result. Do not discuss your process.\n\n"
+        f"AUTOMATION: {item.name}\nINSTRUCTION: {item.instruction}{context}"
+    )
+    model_used, _ = classify_task(prompt)
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            response = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={"model": model_used, "prompt": prompt, "stream": False},
+            )
+        if response.status_code != 200:
+            raise RuntimeError(f"Local model returned HTTP {response.status_code}")
+        output = response.json().get("response", "").strip()
+        if not output:
+            raise RuntimeError("Local model returned an empty result")
+        run.status = "COMPLETED"
+        run.output = output
+        item.last_run_at = datetime.now()
+        run.completed_at = datetime.now()
+        db.commit()
+        http_req.state.audit_summary = f"Completed automation '{item.name}'"
+        return {
+            "run_id": run.id,
+            "status": run.status,
+            "output": output,
+            "model_used": model_used,
+            "document_filename": document.filename if document else None,
+        }
+    except Exception as exc:
+        run.status = "FAILED"
+        run.error = str(exc)
+        run.completed_at = datetime.now()
+        db.commit()
+        raise HTTPException(status_code=503, detail=f"Automation failed: {exc}")
 
 
 @app.get("/api/v1/system/network-log", response_model=NetworkLogResponse)

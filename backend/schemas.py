@@ -265,5 +265,44 @@ class DeliverableGenerateResponse(BaseModel):
     attached_document_filename: Optional[str] = None
 
 
+class AutomationCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    description: str = Field(default="", max_length=500)
+    instruction: str = Field(min_length=5, max_length=4000)
+    trigger_type: str = Field(default="MANUAL", pattern="^(MANUAL|DOCUMENT_ADDED|SCHEDULED)$")
+
+
+class AutomationRunRequest(BaseModel):
+    document_id: Optional[int] = None
+
+
+class AutomationToggleRequest(BaseModel):
+    enabled: bool
+
+
+class AutomationItem(BaseModel):
+    id: int
+    name: str
+    description: str
+    instruction: str
+    trigger_type: str
+    enabled: bool
+    run_count: int
+    last_run_at: Optional[str] = None
+    created_at: str
+
+
+class AutomationRunItem(BaseModel):
+    id: int
+    automation_id: int
+    automation_name: str
+    document_filename: Optional[str] = None
+    status: str
+    output: Optional[str] = None
+    error: Optional[str] = None
+    started_at: str
+    completed_at: Optional[str] = None
+
+
 
 
