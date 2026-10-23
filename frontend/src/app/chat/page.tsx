@@ -109,6 +109,7 @@ export default function ChatPage() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
@@ -400,7 +401,7 @@ export default function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !selectedFile && !selectedRegistryDoc) || loading) return;
+    if (!input.trim() || loading) return;
 
     let currentSessionId = activeSessionId;
     if (!currentSessionId) {
@@ -424,9 +425,7 @@ export default function ChatPage() {
     const attachedName = attachedFile ? attachedFile.name : registryDoc ? registryDoc.filename : null;
 
     setInput("");
-    setSelectedFile(null);
-    setSelectedRegistryDoc(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (composerRef.current) composerRef.current.style.height = "auto";
     setError(null);
 
     const userMsgId = `user-${Date.now()}`;
@@ -434,6 +433,7 @@ export default function ChatPage() {
       id: userMsgId,
       sender: "user",
       content: userText,
+      attachedDocumentId: registryDoc ? String(registryDoc.id) : null,
       attachedFileName: attachedName,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
@@ -498,12 +498,25 @@ export default function ChatPage() {
                 const data = JSON.parse(trimmed.slice(6));
                 if (data.type === "init") {
                   if (data.session_id) setActiveSessionId(String(data.session_id));
+                  if (data.attached_document_id && data.attached_filename) {
+                    setSelectedRegistryDoc({
+                      id: Number(data.attached_document_id),
+                      filename: data.attached_filename,
+                      file_size: attachedFile?.size || registryDoc?.file_size || 0,
+                      created_at: new Date().toISOString(),
+                    });
+                    setSelectedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === aiMsgId
                         ? {
                             ...m,
                             modelUsed: data.model_used,
+                            attachedDocumentId: data.attached_document_id
+                              ? String(data.attached_document_id)
+                              : null,
                             attachedFileName: data.attached_filename || m.attachedFileName,
                             sources: Array.isArray(data.sources) ? data.sources : [],
                           }
@@ -657,7 +670,7 @@ export default function ChatPage() {
     );
   };
 
-  const hasInputContent = Boolean(input.trim() || selectedFile || selectedRegistryDoc);
+  const hasInputContent = Boolean(input.trim());
 
   return (
     <div className="h-full min-h-0 flex w-full bg-[#07090d] overflow-hidden font-sans select-none">
@@ -875,8 +888,10 @@ export default function ChatPage() {
           <div className="max-w-[820px] mx-auto w-full relative">
             {/* Removable Selected File Chip */}
             {(selectedFile || selectedRegistryDoc) && (
-              <div className="mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#161B26] border border-white/[0.08] text-[#22D3EE] text-xs font-mono shadow-sm">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[#78a7ff]/20 bg-[#78a7ff]/[0.08] px-3 py-2 text-sm text-[#b8ceff] shadow-sm">
                 <FileText className="w-3.5 h-3.5 text-[#22D3EE]" />
+                <span className="font-semibold">Document mode</span>
+                <span className="text-[#68758a]">·</span>
                 <span className="truncate max-w-xs">
                   {selectedFile ? selectedFile.name : selectedRegistryDoc?.filename}
                 </span>
@@ -978,11 +993,12 @@ export default function ChatPage() {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
+                accept=".pdf,.docx,.txt,.md,.csv"
                 className="hidden"
               />
 
               {/* Requirement 5: bg-[#161B26], border border-white/[0.08], rounded-xl, focus-within:border-[#22D3EE]/40 with NO glow ring */}
-              <div className="bg-[#10141b] border border-white/[0.09] focus-within:border-[#78a7ff]/40 rounded-2xl p-1.5 flex items-center gap-1 sm:gap-2 shadow-[0_16px_50px_rgba(0,0,0,.2)] transition-colors outline-none">
+              <div className="bg-[#10141b] border border-white/[0.09] focus-within:border-[#78a7ff]/40 rounded-2xl p-2 flex items-end gap-1 sm:gap-2 shadow-[0_16px_50px_rgba(0,0,0,.2)] transition-colors outline-none">
                 <button
                   type="button"
                   onClick={handleOpenAttachPopover}
@@ -1013,10 +1029,21 @@ export default function ChatPage() {
                   )}
                 </button>
 
-                <input
-                  type="text"
+                <textarea
+                  ref={composerRef}
+                  rows={1}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    e.currentTarget.style.height = "auto";
+                    e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 180)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      e.currentTarget.form?.requestSubmit();
+                    }
+                  }}
                   placeholder={
                     isRecording
                       ? "Listening to voice input..."
@@ -1024,7 +1051,7 @@ export default function ChatPage() {
                       ? "Transcribing audio..."
                       : "Ask Sovereign AI anything..."
                   }
-                  className="w-full bg-transparent text-[#E5E7EB] placeholder-[#4B5563] text-sm outline-none px-2 py-1.5 font-sans"
+                  className="max-h-[180px] min-h-[42px] w-full resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-base leading-6 text-[#E5E7EB] placeholder-[#596273] outline-none font-sans"
                   disabled={loading || isTranscribing}
                 />
 
