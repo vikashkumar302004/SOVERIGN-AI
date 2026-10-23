@@ -747,13 +747,13 @@ export default function ChatPage() {
                 <div className="w-12 h-12 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.015] flex items-center justify-center shadow-[0_18px_50px_rgba(0,0,0,.3)]">
                   <MessageSquare className="w-5 h-5 text-[#8eb1ff]" />
                 </div>
-                <h1 className="mt-6 text-2xl sm:text-3xl font-semibold tracking-[-.045em] text-[#eef2f8]">What are we solving?</h1>
-                <p className="mt-2 max-w-md text-[13px] leading-6 text-[#677180]">Ask across your private knowledge, inspect a document, or turn evidence into an operational decision.</p>
+                <h1 className="mt-6 text-3xl font-semibold tracking-[-.045em] text-[#eef2f8]">How can I help you?</h1>
+                <p className="mt-3 max-w-lg text-base leading-7 text-[#8791a1]">Ask anything, brainstorm an idea, write code, or attach a document and ask questions about it.</p>
                 <div className="mt-7 grid w-full max-w-2xl gap-2 sm:grid-cols-3">
                   {[
-                    "Summarize the latest document",
-                    "Find operational risks",
-                    "Draft an evidence-backed report",
+                    "Explain a difficult topic",
+                    "Help me write something",
+                    "Analyze an attached document",
                   ].map((suggestion) => (
                     <button key={suggestion} onClick={() => setInput(suggestion)} className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left text-[11px] leading-4 text-[#7d8797] transition hover:border-[#78a7ff]/25 hover:bg-[#78a7ff]/[0.05] hover:text-[#b6c8e8]">
                       {suggestion}
@@ -811,28 +811,6 @@ export default function ChatPage() {
                           content={msg.content}
                           isStreaming={msg.isStreaming}
                         />
-
-                        {msg.sources && msg.sources.length > 0 && (
-                          <div className="mt-4 rounded-xl border border-white/[0.08] bg-[#111722] p-3">
-                            <div className="mb-2 flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-[#22D3EE]">
-                              <Database className="h-3.5 w-3.5" />
-                              Evidence used
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {msg.sources.map((source) => (
-                                <span
-                                  key={`${source.document_id}-${source.chunk_index}`}
-                                  title={`${source.excerpt}\nSimilarity: ${source.score.toFixed(3)}`}
-                                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#161B26] px-2.5 py-1 text-[11px] text-[#9CA3AF]"
-                                >
-                                  <span className="font-mono text-[#22D3EE]">[{source.label}]</span>
-                                  <span className="max-w-48 truncate">{source.filename}</span>
-                                  <span className="font-mono text-[#4B5563]">#{source.chunk_index + 1}</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
 
                         {/* Model Badge with Colored Dot & Monospace Timestamp Footer */}
                         {(msg.modelUsed || msg.timestamp || msg.finishReason === "stopped") && (

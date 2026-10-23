@@ -157,21 +157,25 @@ def cleanup_run(run_id: str) -> None:
 
 
 def stream_chat(
-    client: httpx.Client, session_id: int, document_id: int, run_id: str
+    client: httpx.Client,
+    session_id: int,
+    run_id: str,
+    question: str,
+    document_id: int | None = None,
 ) -> dict:
     tokens: list[str] = []
     done: dict = {}
+    sources: list[dict] = []
+    data = {
+        "session_id": str(session_id),
+        "prompt": f"Verification run {run_id}: {question}",
+    }
+    if document_id is not None:
+        data["document_id"] = str(document_id)
     with client.stream(
         "POST",
         "/api/v1/chat",
-        data={
-            "session_id": str(session_id),
-            "document_id": str(document_id),
-            "prompt": (
-                f"Verification run {run_id}: What is the vibration reading and "
-                "required action? Cite the source."
-            ),
-        },
+        data=data,
         timeout=180,
     ) as response:
         if response.status_code != 200:
@@ -180,7 +184,9 @@ def stream_chat(
             if not line.startswith("data: "):
                 continue
             frame = json.loads(line[6:])
-            if frame.get("type") == "token":
+            if frame.get("type") == "init":
+                sources = frame.get("sources", [])
+            elif frame.get("type") == "token":
                 tokens.append(frame.get("token", ""))
             elif frame.get("type") == "error":
                 raise RuntimeError(f"chat stream error: {frame}")
@@ -189,9 +195,7 @@ def stream_chat(
     answer = "".join(tokens).strip()
     if not answer or done.get("finish_reason") != "complete":
         raise RuntimeError(f"chat did not complete correctly: done={done}, chars={len(answer)}")
-    if "[S1]" not in answer:
-        raise RuntimeError(f"chat answer did not cite retrieved evidence: {answer[:500]}")
-    return {"answer_chars": len(answer), "done": done}
+    return {"answer": answer, "answer_chars": len(answer), "done": done, "sources": sources}
 
 
 def main(keep_data: bool = False) -> None:
@@ -240,14 +244,41 @@ def main(keep_data: bool = False) -> None:
         session = require(
             operator.post("/api/v1/chat/sessions"), 200, "chat session"
         )
-        chat_result = stream_chat(operator, session["session_id"], document_id, run_id)
+        general_result = stream_chat(
+            operator,
+            session["session_id"],
+            run_id,
+            "How are you? Reply naturally and briefly.",
+        )
+        if general_result["sources"]:
+            raise RuntimeError(
+                f"normal chat unexpectedly retrieved documents: {general_result['sources']}"
+            )
+        if "evidence" in general_result["answer"].lower():
+            raise RuntimeError(
+                f"normal chat unnecessarily discussed evidence: {general_result['answer'][:500]}"
+            )
+
+        chat_result = stream_chat(
+            operator,
+            session["session_id"],
+            run_id,
+            "What is the vibration reading and required action?",
+            document_id=document_id,
+        )
+        if not chat_result["sources"]:
+            raise RuntimeError("attached-document chat did not retrieve document context")
+        if "8.2" not in chat_result["answer"] and "7.1" not in chat_result["answer"]:
+            raise RuntimeError(
+                f"chat answer did not use the attached document: {chat_result['answer'][:500]}"
+            )
 
         history = require(
             operator.get(f"/api/v1/chat/sessions/{session['session_id']}/messages"),
             200,
             "chat history",
         )
-        if len(history["messages"]) < 2:
+        if len(history["messages"]) < 4:
             raise RuntimeError(f"streamed conversation was not persisted: {history}")
 
         inspection = require(

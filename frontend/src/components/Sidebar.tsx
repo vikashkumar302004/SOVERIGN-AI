@@ -28,32 +28,32 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
     {
       label: "WORKSPACE",
       items: [
-        { name: "Chat Router", path: "/chat", icon: MessageSquare, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
-        { name: "Document Registry", path: "/documents", icon: FileText, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
-        { name: "Knowledge Search", path: "/knowledge", icon: Database, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Chat", path: "/chat", icon: MessageSquare, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Documents", path: "/documents", icon: FileText, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Search", path: "/knowledge", icon: Database, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
       ],
     },
     {
       label: "TOOLS",
       items: [
-        { name: "Subprocess Sandbox", path: "/sandbox", icon: Terminal, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
-        { name: "Inspection Approval", path: "/inspection", icon: ShieldCheck, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
-        { name: "Deliverable Generator", path: "/generate", icon: FileOutput, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Code workspace", path: "/sandbox", icon: Terminal, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Inspections", path: "/inspection", icon: ShieldCheck, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
+        { name: "Create report", path: "/generate", icon: FileOutput, roles: ["EMPLOYEE", "ANALYST", "MANAGER", "ADMIN"] },
       ],
     },
     {
       label: "ADMIN",
       items: [
-        { name: "Manager Approvals", path: "/reviews", icon: ShieldCheck, roles: ["MANAGER", "ADMIN"] },
-        { name: "Air-Gap Monitor", path: "/sovereignty", icon: WifiOff, roles: ["MANAGER", "ADMIN"] },
-        { name: "Audit Trail", path: "/audit", icon: ClipboardList, roles: ["MANAGER", "ADMIN"] },
-        { name: "User Administration", path: "/admin", icon: Users, roles: ["ADMIN"] },
+        { name: "Approvals", path: "/reviews", icon: ShieldCheck, roles: ["MANAGER", "ADMIN"] },
+        { name: "System status", path: "/sovereignty", icon: WifiOff, roles: ["MANAGER", "ADMIN"] },
+        { name: "Activity log", path: "/audit", icon: ClipboardList, roles: ["MANAGER", "ADMIN"] },
+        { name: "Users", path: "/admin", icon: Users, roles: ["ADMIN"] },
       ],
     },
   ];
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 w-[280px] border-r border-white/[0.07] flex flex-col justify-between h-[100dvh] shrink-0 select-none transition-transform duration-300 lg:static lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+    <aside className={`fixed inset-y-0 left-0 z-50 w-[320px] border-r border-white/[0.07] flex flex-col justify-between h-[100dvh] shrink-0 select-none transition-transform duration-300 lg:static lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       style={{ background: "linear-gradient(180deg, #0b0e13 0%, #080a0e 100%)" }}
     >
       <div>
@@ -98,7 +98,7 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
                     <Link
                       key={item.path}
                       href={item.path}
-                      className={`relative flex items-center space-x-3 px-3 py-2.5 rounded-[11px] text-[12px] font-medium transition-all duration-150 ease-out active:scale-[0.98] group ${
+                      className={`relative flex items-center space-x-3 px-3.5 py-3 rounded-[11px] text-[15px] font-medium transition-all duration-150 ease-out active:scale-[0.98] group ${
                         isActive
                           ? "bg-[#78A7FF]/10 text-[#a9c5ff] font-semibold border border-[#78A7FF]/16 sidebar-active-glow"
                           : "text-[#7b8493] border border-transparent hover:text-[#e7ebf2] hover:bg-white/[0.035]"
