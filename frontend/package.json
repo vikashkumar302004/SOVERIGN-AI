@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/start-standalone.mjs",
+    "start": "next start -H 127.0.0.1 -p 3000",
     "lint": "next lint"
   },
   "dependencies": {
