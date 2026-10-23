@@ -171,6 +171,44 @@ class AuthAndIsolationTests(unittest.TestCase):
         self.assertEqual(owner_sources[0]["filename"], "private-sop.txt")
         self.assertEqual(intruder_sources, [])
 
+    def test_document_overview_reads_chunks_in_document_order(self):
+        owner = self.create_user("overview_owner")
+        document = Document(
+            filename="resume.pdf",
+            file_path="resume.pdf",
+            file_size=100,
+            extracted_text="Complete resume text",
+            used_ocr=False,
+            owner_id=owner.id,
+        )
+        self.db.add(document)
+        self.db.commit()
+        self.db.refresh(document)
+        for index in range(6):
+            self.db.add(
+                DocumentChunk(
+                    document_id=document.id,
+                    chunk_index=index,
+                    chunk_text=f"Resume section {index}",
+                    embedding=json.dumps([float(index), 1.0]),
+                )
+            )
+        self.db.commit()
+
+        self.assertTrue(main._is_document_overview_prompt("isko samjhao pdf ko"))
+        self.assertTrue(main._is_document_overview_prompt("Make a flowchart of this document"))
+        with patch.object(main, "get_embedding") as mocked_embedding:
+            sources = main._retrieve_chat_sources(
+                self.db,
+                "isko samjhao pdf ko",
+                owner,
+                document_id=document.id,
+            )
+
+        mocked_embedding.assert_not_called()
+        self.assertEqual(len(sources), 6)
+        self.assertEqual([item["chunk_index"] for item in sources], list(range(6)))
+
     def test_ollama_model_registry_parser_is_stable(self):
         payload = {
             "models": [
