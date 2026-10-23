@@ -409,6 +409,23 @@ def _is_document_overview_prompt(prompt: str) -> bool:
     return any(signal in normalized for signal in DOCUMENT_OVERVIEW_SIGNALS)
 
 
+def _bounded_chat_history(messages: list[ChatMessage]) -> list[dict]:
+    """Keep recent turns without overflowing the local model's context window."""
+    remaining = config.CHAT_HISTORY_TOTAL_CHARS
+    selected: list[dict] = []
+    for message in reversed(messages):
+        if remaining <= 0:
+            break
+        content = (message.content or "")[-config.CHAT_HISTORY_MESSAGE_CHARS :]
+        if not content:
+            continue
+        content = content[-remaining:]
+        selected.append({"role": message.role, "content": content})
+        remaining -= len(content)
+    selected.reverse()
+    return selected
+
+
 def _retrieve_chat_sources(
     db: Session,
     prompt: str,
@@ -1085,7 +1102,7 @@ async def chat(
         .order_by(ChatMessage.id.asc())
         .all()
     )
-    recent_past = past_messages[-10:] if len(past_messages) > 10 else past_messages
+    recent_past = _bounded_chat_history(past_messages)
 
     # Normal chat must behave like a general-purpose assistant. Document retrieval is
     # intentionally opt-in and only runs when the user explicitly attaches/selects one.
@@ -1120,13 +1137,7 @@ async def chat(
 
     # Build Ollama messages array for multi-turn chat memory
     ollama_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for pm in recent_past:
-        ollama_messages.append(
-            {
-                "role": pm.role,
-                "content": pm.content[-config.CHAT_HISTORY_MESSAGE_CHARS :],
-            }
-        )
+    ollama_messages.extend(recent_past)
 
     ollama_messages.append({"role": "user", "content": user_turn_content})
 

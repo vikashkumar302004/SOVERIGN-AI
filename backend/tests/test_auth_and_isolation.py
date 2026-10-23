@@ -4,6 +4,7 @@ import sys
 import unittest
 import uuid
 import logging
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException, Response
@@ -208,6 +209,23 @@ class AuthAndIsolationTests(unittest.TestCase):
         mocked_embedding.assert_not_called()
         self.assertEqual(len(sources), 6)
         self.assertEqual([item["chunk_index"] for item in sources], list(range(6)))
+
+    def test_chat_history_has_a_total_context_budget(self):
+        messages = [
+            SimpleNamespace(
+                role="user" if index % 2 == 0 else "assistant",
+                content=str(index) * 4000,
+            )
+            for index in range(10)
+        ]
+        bounded = main._bounded_chat_history(messages)
+
+        self.assertLessEqual(
+            sum(len(message["content"]) for message in bounded),
+            config.CHAT_HISTORY_TOTAL_CHARS,
+        )
+        self.assertEqual(bounded[-1]["content"], "9" * 4000)
+        self.assertLess(len(bounded), len(messages))
 
     def test_ollama_model_registry_parser_is_stable(self):
         payload = {
