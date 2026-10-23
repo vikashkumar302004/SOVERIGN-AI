@@ -673,16 +673,16 @@ export default function ChatPage() {
   const hasInputContent = Boolean(input.trim());
 
   return (
-    <div className="h-full min-h-0 flex w-full bg-[#07090d] overflow-hidden font-sans select-none">
+    <div className="h-full min-h-0 flex w-full bg-[#090b10] overflow-hidden font-sans">
       {/* History Session Sidebar (Collapsible) */}
       {showHistorySidebar && (
-        <div className="absolute inset-y-0 left-0 z-30 w-[280px] border-r border-white/[0.07] bg-[#0b0e13] flex flex-col shrink-0 overflow-hidden shadow-[20px_0_60px_rgba(0,0,0,.35)] transition-all duration-300 md:relative md:w-64 md:shadow-none">
-          <div className="p-3.5 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="absolute inset-y-0 left-0 z-30 w-[304px] border-r border-white/[0.07] bg-[#0d1016] flex flex-col shrink-0 overflow-hidden shadow-[20px_0_60px_rgba(0,0,0,.35)] transition-all duration-300 md:relative md:w-[304px] md:shadow-none">
+          <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
             {/* ONE BOLD ACCENT MOMENT: Solid Cyan New Chat Button */}
             <button
               onClick={createNewSession}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 accent-gradient text-[#07101f] font-semibold text-xs py-2.5 px-3 rounded-[10px] shadow-[0_10px_30px_rgba(55,91,160,.18)] transition-all duration-150 active:scale-[.98] disabled:opacity-50 font-sans cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 accent-gradient text-[#07101f] font-semibold text-[15px] h-12 px-4 rounded-xl shadow-[0_10px_30px_rgba(55,91,160,.18)] transition-all duration-150 active:scale-[.98] disabled:opacity-50 font-sans cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>New conversation</span>
@@ -731,9 +731,9 @@ export default function ChatPage() {
       )}
 
       {/* Main Full-Width Chat Canvas Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#07090d] relative overflow-hidden">
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#090b10] relative overflow-hidden">
         {/* Slim Header Row */}
-        <div className="px-4 sm:px-6 h-12 flex items-center justify-between border-b border-white/[0.055] bg-[#080b0f]/90 shrink-0 relative z-10">
+        <div className="px-6 h-16 flex items-center justify-between border-b border-white/[0.06] bg-[#090b10]/90 shrink-0 relative z-10 backdrop-blur-xl">
           <div className="flex items-center space-x-3 text-[11px] font-mono text-[#6B7280]">
             <button
               onClick={() => setShowHistorySidebar(!showHistorySidebar)}
@@ -743,7 +743,7 @@ export default function ChatPage() {
               <PanelLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-medium text-[#818b9a] tracking-wide font-sans">
+              <span className="text-[15px] font-semibold text-[#d8dde7] tracking-[-0.01em] font-sans">
                 {activeSessionId ? `Conversation #${activeSessionId}` : "New conversation"}
               </span>
             </div>
@@ -753,22 +753,22 @@ export default function ChatPage() {
         {/* Scrollable Messages Area */}
         <div className="flex-1 overflow-y-auto w-full relative z-10">
           {/* Spacing Rhythm: 40px vertical gap between speaker messages; flex justify-end hugs bottom when sparse */}
-          <div className={`max-w-[820px] mx-auto w-full px-4 md:px-8 py-8 space-y-10 ${messages.length > 0 ? "min-h-full flex flex-col justify-end" : ""}`}>
+          <div className={`max-w-[920px] mx-auto w-full px-6 md:px-10 pt-10 pb-44 space-y-12 ${messages.length > 0 ? "min-h-full" : ""}`}>
             {messages.length === 0 ? (
               /* Truly Empty Session: Restrained 48px Icon + 1 line muted text */
-              <div className="min-h-[58vh] flex flex-col items-center justify-center text-center select-none px-2">
-                <div className="w-12 h-12 rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.015] flex items-center justify-center shadow-[0_18px_50px_rgba(0,0,0,.3)]">
-                  <MessageSquare className="w-5 h-5 text-[#8eb1ff]" />
+              <div className="min-h-[64vh] flex flex-col items-center justify-center text-center select-none px-2">
+                <div className="w-16 h-16 rounded-[22px] border border-white/[0.1] bg-gradient-to-br from-[#78a7ff]/15 to-white/[0.025] flex items-center justify-center shadow-[0_24px_70px_rgba(0,0,0,.32)]">
+                  <MessageSquare className="w-7 h-7 text-[#9bbaff]" />
                 </div>
-                <h1 className="mt-6 text-3xl font-semibold tracking-[-.045em] text-[#eef2f8]">How can I help you?</h1>
-                <p className="mt-3 max-w-lg text-base leading-7 text-[#8791a1]">Ask anything, brainstorm an idea, write code, or attach a document and ask questions about it.</p>
-                <div className="mt-7 grid w-full max-w-2xl gap-2 sm:grid-cols-3">
+                <h1 className="mt-7 text-[34px] font-semibold tracking-[-.045em] text-[#f3f5f9]">What can I help you build?</h1>
+                <p className="mt-3 max-w-xl text-[17px] leading-7 text-[#919aaa]">Ask anything, write code, explore an idea, or attach a document for a grounded answer.</p>
+                <div className="mt-8 grid w-full max-w-3xl gap-3 sm:grid-cols-3">
                   {[
                     "Explain a difficult topic",
                     "Help me write something",
                     "Analyze an attached document",
                   ].map((suggestion) => (
-                    <button key={suggestion} onClick={() => setInput(suggestion)} className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left text-[11px] leading-4 text-[#7d8797] transition hover:border-[#78a7ff]/25 hover:bg-[#78a7ff]/[0.05] hover:text-[#b6c8e8]">
+                    <button key={suggestion} onClick={() => setInput(suggestion)} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] px-5 py-4 text-left text-[15px] leading-6 text-[#a3acba] transition hover:-translate-y-0.5 hover:border-[#78a7ff]/30 hover:bg-[#78a7ff]/[0.06] hover:text-[#d7e2f8]">
                       {suggestion}
                     </button>
                   ))}
@@ -778,22 +778,22 @@ export default function ChatPage() {
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`flex items-start gap-4 transition-all ${
+                  className={`flex items-start gap-4 transition-all animate-fadeIn ${
                     msg.sender === "user"
-                      ? "flex-row-reverse space-x-reverse max-w-[85%] sm:max-w-[75%] ml-auto"
-                      : "max-w-[90%] sm:max-w-[85%]"
+                      ? "flex-row-reverse space-x-reverse max-w-[82%] ml-auto"
+                      : "w-full"
                   }`}
                 >
                   {/* Circular Avatars */}
                   {msg.sender === "user" ? (
-                    <div className="w-8 h-8 rounded-full bg-[#1F293D] border border-white/[0.08] text-[#E5E7EB] font-medium text-xs flex items-center justify-center shrink-0 select-none">
+                    <div className="w-9 h-9 rounded-full bg-[#1F293D] border border-white/[0.09] text-[#E5E7EB] font-semibold text-sm flex items-center justify-center shrink-0 select-none">
                       {userInitial}
                     </div>
                   ) : (
                     <img
                       src="/sovereign_logo.png"
                       alt="Sovereign AI Logo"
-                      className="w-8 h-8 rounded-lg border border-white/[0.08] object-cover shrink-0 select-none"
+                      className="w-9 h-9 rounded-xl border border-white/[0.09] object-cover shrink-0 select-none shadow-[0_8px_24px_rgba(0,0,0,.28)]"
                     />
                   )}
 
@@ -801,7 +801,7 @@ export default function ChatPage() {
                   <div className="flex-1 overflow-hidden">
                     {/* User Message Bubble: Restrained Dark Elevated Surface (#1A2030) with 2px Cyan Left Accent */}
                     {msg.sender === "user" ? (
-                      <div className="bg-[#1A2030] text-[#E5E7EB] rounded-2xl rounded-tr-sm px-4 py-3 border border-white/[0.08] border-l-2 border-l-[#22D3EE] text-sm leading-relaxed shadow-sm font-sans">
+                      <div className="bg-[#1a2030] text-[#edf1f7] rounded-[20px] rounded-tr-md px-5 py-3.5 border border-white/[0.09] text-[16px] leading-7 shadow-[0_10px_28px_rgba(0,0,0,.16)] font-sans">
                         {msg.attachedFileName && (
                           <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/30 text-[#22D3EE] text-xs font-mono">
                             <FileText className="w-3.5 h-3.5" />
@@ -812,7 +812,7 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       /* Assistant Content: 15px leading-[1.7] #D1D5DB with pl-6 Rail Alignment under avatar */
-                      <div className="text-[#D1D5DB] text-[15px] leading-[1.7] pt-0.5">
+                      <div className="text-[#e4e8ef] text-[16px] leading-[1.8] pt-0.5 pr-3">
                         {msg.attachedFileName && (
                           <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161B26] border border-white/[0.08] text-[#22D3EE] text-xs font-mono">
                             <FileText className="w-3.5 h-3.5" />
@@ -881,11 +881,11 @@ export default function ChatPage() {
         </div>
 
         {/* Scroll-fade bottom gradient */}
-        <div className="absolute bottom-16 left-0 right-0 h-10 bg-gradient-to-t from-[#0D1117] to-transparent pointer-events-none z-10" />
+        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#090b10] via-[#090b10]/95 to-transparent pointer-events-none z-10" />
 
         {/* Requirement 5: Visually Anchored Bottom Input Zone (#0D1117 with 1px top border) */}
-        <div className="bg-[#080b0f]/95 border-t border-white/[0.055] py-3 px-3 sm:px-4 z-20 sticky bottom-0 backdrop-blur-xl">
-          <div className="max-w-[820px] mx-auto w-full relative">
+        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 z-20 pointer-events-none">
+          <div className="max-w-[900px] mx-auto w-full relative pointer-events-auto">
             {/* Removable Selected File Chip */}
             {(selectedFile || selectedRegistryDoc) && (
               <div className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[#78a7ff]/20 bg-[#78a7ff]/[0.08] px-3 py-2 text-sm text-[#b8ceff] shadow-sm">
@@ -998,13 +998,13 @@ export default function ChatPage() {
               />
 
               {/* Requirement 5: bg-[#161B26], border border-white/[0.08], rounded-xl, focus-within:border-[#22D3EE]/40 with NO glow ring */}
-              <div className="bg-[#10141b] border border-white/[0.09] focus-within:border-[#78a7ff]/40 rounded-2xl p-2 flex items-end gap-1 sm:gap-2 shadow-[0_16px_50px_rgba(0,0,0,.2)] transition-colors outline-none">
+              <div className="bg-[#151922]/95 border border-white/[0.11] focus-within:border-[#78a7ff]/45 rounded-[24px] p-2.5 flex items-end gap-1 sm:gap-2 shadow-[0_20px_70px_rgba(0,0,0,.48),0_1px_0_rgba(255,255,255,.04)_inset] transition-colors outline-none backdrop-blur-2xl">
                 <button
                   type="button"
                   onClick={handleOpenAttachPopover}
                   disabled={loading || isRecording || isTranscribing}
                   title="Attach File or Select from Registry"
-                  className="p-2 text-[#6B7280] hover:text-[#22D3EE] disabled:opacity-40 transition-colors rounded-lg shrink-0"
+                  className="w-10 h-10 flex items-center justify-center text-[#8791a1] hover:text-[#b9ccf7] hover:bg-white/[0.05] disabled:opacity-40 transition-colors rounded-xl shrink-0"
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
@@ -1014,7 +1014,7 @@ export default function ChatPage() {
                   onClick={handleToggleRecording}
                   disabled={loading || isTranscribing}
                   title={isRecording ? "Stop Recording & Transcribe" : "Start Voice Input (STT)"}
-                  className={`p-2 transition-colors rounded-lg shrink-0 flex items-center justify-center ${
+                  className={`w-10 h-10 transition-colors rounded-xl shrink-0 flex items-center justify-center ${
                     isRecording
                       ? "bg-rose-500/20 text-rose-400"
                       : "text-[#6B7280] hover:text-[#22D3EE] disabled:opacity-40"
@@ -1051,7 +1051,7 @@ export default function ChatPage() {
                       ? "Transcribing audio..."
                       : "Ask Sovereign AI anything..."
                   }
-                  className="max-h-[180px] min-h-[42px] w-full resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-base leading-6 text-[#E5E7EB] placeholder-[#596273] outline-none font-sans"
+                  className="max-h-[200px] min-h-[46px] w-full resize-none overflow-y-auto bg-transparent px-2 py-2.5 text-[16px] leading-7 text-[#eef1f6] placeholder-[#697384] outline-none font-sans"
                   disabled={loading || isTranscribing}
                 />
 
@@ -1060,7 +1060,7 @@ export default function ChatPage() {
                   onClick={loading ? stopGeneration : undefined}
                   disabled={!loading && (isRecording || isTranscribing || !hasInputContent)}
                   title={loading ? "Stop generation" : "Send message"}
-                  className={`p-2 rounded-lg transition-all duration-150 active:scale-95 shrink-0 flex items-center justify-center ${
+                  className={`w-10 h-10 rounded-xl transition-all duration-150 active:scale-95 shrink-0 flex items-center justify-center ${
                     loading || hasInputContent
                       ? "bg-[#82a9fa] hover:bg-[#9bbaff] text-[#07101f] opacity-100 cursor-pointer"
                       : "bg-[#1F2533] text-[#4B5563] opacity-40 cursor-not-allowed"
