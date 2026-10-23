@@ -84,7 +84,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(url, {
         ...options,
         headers,
-        credentials: "same-origin",
+        // Required for trusted localhost API calls that use a different port.
+        // The backend still enforces the configured CORS allow-list.
+        credentials: "include",
       });
 
       if (res.status === 401) {

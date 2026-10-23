@@ -28,6 +28,9 @@ const steps = [
   [FileCheck2, "Create report", "Generate a review-ready file"],
 ] as const;
 
+const backendOrigin =
+  process.env.NEXT_PUBLIC_BACKEND_ORIGIN || "http://127.0.0.1:8000";
+
 export default function InspectionPage() {
   const { authFetch } = useAuth();
   const [documents, setDocuments] = useState<DocItem[]>([]);
@@ -62,7 +65,9 @@ export default function InspectionPage() {
     setError(null);
     setWorkflowResult(null);
     try {
-      const res = await authFetch("/api/v1/workflows/inspection-approval", {
+      // Long-running local inference can outlive Next's rewrite proxy socket.
+      // Call the trusted local API directly so the browser keeps the connection open.
+      const res = await authFetch(`${backendOrigin}/api/v1/workflows/inspection-approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ document_id: Number(selectedDocId) }),
@@ -85,12 +90,12 @@ export default function InspectionPage() {
       : "border-amber-400/20 bg-amber-400/[.08] text-amber-200";
 
   return (
-    <div className="workspace-page max-w-[1120px] space-y-7">
+    <div className="inspection-page workspace-page max-w-[1120px] space-y-8 font-sans">
       <header className="flex items-end justify-between gap-6 border-b border-token pb-6">
         <div>
-          <div className="workspace-eyebrow flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Inspection workflow</div>
-          <h1 className="workspace-title mt-3">From document to decision</h1>
-          <p className="mt-3 max-w-2xl text-[16px] leading-7 text-secondary">
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-[#8fb1fb]"><ShieldCheck className="h-5 w-5" /> Inspection workflow</div>
+          <h1 className="mt-3 text-[32px] font-semibold leading-tight tracking-[-.035em] text-primary">From document to decision</h1>
+          <p className="mt-3 max-w-3xl text-[17px] leading-7 text-secondary">
             Choose an inspection file. Sovereign AI reads it, checks the findings and prepares a report for manager approval.
           </p>
         </div>
@@ -107,8 +112,8 @@ export default function InspectionPage() {
                 {workflowResult ? <CheckCircle2 className="h-5 w-5" /> : <Icon className={`h-5 w-5 ${runningWorkflow ? "animate-pulse" : ""}`} />}
               </div>
               <div>
-                <div className="text-[15px] font-semibold text-primary">{index + 1}. {title}</div>
-                <div className="mt-1 text-[14px] text-muted">{copy}</div>
+                <div className="text-[16px] font-semibold text-primary">{index + 1}. {title}</div>
+                <div className="mt-1 text-[15px] leading-6 text-muted">{copy}</div>
               </div>
             </div>
           </div>
@@ -118,15 +123,15 @@ export default function InspectionPage() {
       <section className="rounded-2xl border border-token bg-surface p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-end gap-4">
           <label className="min-w-0 flex-1">
-            <span className="mb-2 block text-[15px] font-semibold text-primary">Inspection document</span>
+            <span className="mb-2 block text-[16px] font-semibold text-primary">Inspection document</span>
             <select value={selectedDocId} onChange={(e) => setSelectedDocId(Number(e.target.value))} disabled={loadingDocs || runningWorkflow}
-              className="w-full rounded-xl border border-token bg-base px-4 py-3.5 text-[15px] text-primary outline-none transition focus:border-accent/60">
+              className="w-full rounded-xl border border-token bg-base px-4 py-3.5 text-[16px] text-primary outline-none transition focus:border-accent/60">
               {documents.length === 0 && <option value="">{loadingDocs ? "Loading documents…" : "No documents available"}</option>}
               {documents.map((doc) => <option key={doc.id} value={doc.id}>{doc.filename} · {(doc.file_size / 1024).toFixed(1)} KB</option>)}
             </select>
           </label>
           <button onClick={handleRunWorkflow} disabled={!selectedDocId || runningWorkflow}
-            className="flex min-h-[50px] min-w-[230px] items-center justify-center gap-2 rounded-xl accent-gradient px-6 text-[15px] font-bold text-[#07101f] shadow-[0_12px_30px_rgba(55,94,174,.22)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0">
+            className="flex min-h-[52px] min-w-[230px] items-center justify-center gap-2 rounded-xl accent-gradient px-6 text-[16px] font-bold text-[#07101f] shadow-[0_12px_30px_rgba(55,94,174,.22)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0">
             {runningWorkflow ? <><RefreshCw className="h-5 w-5 animate-spin" /> Running inspection…</> : <><Play className="h-5 w-5 fill-current" /> Start inspection</>}
           </button>
         </div>
@@ -149,8 +154,8 @@ export default function InspectionPage() {
             <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#78a7ff]/25 bg-[#78a7ff]/10 text-[#9dbaff]">
               <Sparkles className="h-7 w-7 animate-pulse" /><span className="absolute inset-0 animate-ping rounded-2xl border border-[#78a7ff]/20" />
             </div>
-            <h2 className="mt-5 text-[20px] font-semibold text-primary">Sovereign AI is reviewing the file</h2>
-            <p className="mt-2 text-[15px] leading-6 text-secondary">Reading measurements, checking anomalies and preparing the approval report. Local models can take a moment.</p>
+            <h2 className="mt-5 text-[22px] font-semibold text-primary">Sovereign AI is reviewing the file</h2>
+            <p className="mt-2 text-[16px] leading-7 text-secondary">Reading measurements, checking anomalies and preparing the approval report. Local models usually take 30–60 seconds.</p>
           </div>
         </div>
       )}
@@ -160,16 +165,16 @@ export default function InspectionPage() {
           <div className="flex items-center justify-between gap-5 border-b border-token p-6">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-[14px] font-medium text-accent"><CheckCircle2 className="h-4 w-4" /> Inspection complete</div>
-              <h2 className="mt-2 truncate text-[22px] font-semibold tracking-[-.02em] text-primary">{workflowResult.document_filename}</h2>
-              <div className="mt-1 text-[14px] text-muted">Workflow {workflowResult.workflow_id}</div>
+              <h2 className="mt-2 truncate text-[24px] font-semibold tracking-[-.02em] text-primary">{workflowResult.document_filename}</h2>
+              <div className="mt-1 text-[15px] text-muted">Workflow {workflowResult.workflow_id}</div>
             </div>
             <div className={`rounded-full border px-4 py-2 text-[14px] font-bold ${verdictStyle}`}>AI verdict · {verdict}</div>
           </div>
 
           <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_310px]">
             <div>
-              <h3 className="mb-4 text-[17px] font-semibold text-primary">Inspection analysis</h3>
-              <div className="rounded-xl border border-token bg-base p-5 text-[15px] leading-7 text-secondary">
+              <h3 className="mb-4 text-[19px] font-semibold text-primary">Inspection analysis</h3>
+              <div className="rounded-xl border border-token bg-base p-5 text-[16px] leading-7 text-secondary">
                 <MarkdownRenderer content={workflowResult.model_analysis} />
               </div>
             </div>
